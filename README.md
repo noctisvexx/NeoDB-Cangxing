@@ -105,13 +105,6 @@ npx electron-builder --win
 - 应用本身不上传任何数据；AI 推荐 / 画像会把你的已标记作品列表发送给你配置的 AI 服务商
 - 本项目为个人工具，非商业用途
 
-## 路线图
-
-- [ ] 微信读书扫码登录
-- [ ] 更多游戏榜单（Steam Web API 在线人数榜）
-- [ ] 朋友动态 / 多账号切换
-- [ ] PWA / Android
-
 ## License
 
 本项目由 **noctisvex** 设计，AI 助手（Codex）辅助开发。

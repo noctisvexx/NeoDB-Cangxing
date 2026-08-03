@@ -6,11 +6,9 @@ import { formatCount, pickTitle, stars } from "@/lib/utils";
 
 export default function ItemCard({
   item,
-  source,
   square,
 }: {
   item: NeoDBItem;
-  source?: string;
   square?: boolean;
 }) {
   const title = pickTitle(item);
@@ -39,11 +37,6 @@ export default function ItemCard({
           <div className="flex h-full w-full items-center justify-center text-2xl">
             📖
           </div>
-        )}
-        {source && (
-          <span className="absolute left-1 top-1 max-w-[52px] truncate rounded bg-black/60 px-1 py-0.5 text-[10px] text-zinc-100">
-            {source}
-          </span>
         )}
       </div>
       <div className="min-w-0 flex-1">

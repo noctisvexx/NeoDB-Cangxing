@@ -130,7 +130,9 @@ export default function SettingsPage() {
   const [webdavPass, setWebdavPass] = useState("");
   const [backupMsg, setBackupMsg] = useState<string | null>(null);
   const [backupError, setBackupError] = useState<string | null>(null);
-  const [bridgeBusy, setBridgeBusy] = useState<"import" | "export" | null>(null);
+  const [bridgeBusy, setBridgeBusy] = useState<
+    "import" | "export" | "exportData" | null
+  >(null);
   const [bridgeMsg, setBridgeMsg] = useState<string | null>(null);
   const [bridgeError, setBridgeError] = useState<string | null>(null);
   const [sysConfig, setSysConfig] = useState<{
@@ -558,6 +560,39 @@ export default function SettingsPage() {
     }
   }
 
+  async function exportNeoDBData() {
+    setBridgeBusy("exportData");
+    setBridgeMsg(null);
+    setBridgeError(null);
+    try {
+      const res = await fetch("/api/neodb/export", { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "导出失败");
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: "application/json;charset=utf-8",
+      });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `cangxing-neodb-export-${new Date()
+        .toISOString()
+        .slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      setBridgeMsg(
+        `已导出 NeoDB 全部数据（${data.count ?? 0} 条标记）到 JSON 文件${
+          data.errors?.length ? `，另有 ${data.errors.length} 处读取告警` : ""
+        }`,
+      );
+      if (data.errors?.length) {
+        setBridgeError((data.errors as string[]).slice(0, 5).join("；"));
+      }
+    } catch (e) {
+      setBridgeError(e instanceof Error ? e.message : "导出失败");
+    } finally {
+      setBridgeBusy(null);
+    }
+  }
+
   async function updateSysConfig(patch: {
     lanMode?: boolean;
     autoLaunch?: boolean;
@@ -618,6 +653,14 @@ export default function SettingsPage() {
           className="inline-block rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-zinc-950 transition hover:bg-amber-400"
         >
           前往「我的」连接 / 重新授权
+        </a>
+        <a
+          href={`${(status?.instance || "https://neodb.social").replace(/\/+$/, "")}/account/login`}
+          target="_blank"
+          rel="noreferrer"
+          className="ml-2 inline-block rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 transition hover:border-amber-400/50 hover:text-amber-300"
+        >
+          还没有账号？去注册
         </a>
       </div>
 
@@ -996,13 +1039,13 @@ export default function SettingsPage() {
         </h2>
         <p className="mb-3 text-xs text-zinc-500">
           填入 wrk- 开头的微信读书网关 Key 后，首页「热门书籍」会切换为微信读书
-          「为你推荐」（基于你的阅读记录，含封面与评分）。可选，不填则使用 NeoDB
-          书籍热门。
+          「我看过」（你微信读书书架中已读完的书，含封面与评分）。可选，不填则使用
+          NeoDB 书籍热门。
           {status && (
             <span className="mt-1 block">
               {statusRow(
                 status.wereadConfigured,
-                "已配置，首页书籍已切换微信读书推荐",
+                "已配置，首页书籍已切换为微信读书「我看过」",
                 "未配置",
               )}
             </span>
@@ -1100,7 +1143,7 @@ export default function SettingsPage() {
           ⑦ 本地 ↔ NeoDB 数据桥接
         </h2>
         <p className="mb-3 text-xs text-zinc-500">
-          本地标记是给不使用 NeoDB 的朋友准备的：可把自己在 NeoDB 的整个书架导入成本地标记（随备份一起加密同步），也可把本地标记一次性同步回 NeoDB。需要先完成 NeoDB 账号授权。
+          本地标记是给不使用 NeoDB 的朋友准备的：可把自己在 NeoDB 的整个书架导入成本地标记（随备份一起加密同步），也可把本地标记一次性同步回 NeoDB；已连接 NeoDB 时还可以把全部书架数据（想看 / 在看 / 已看 / 弃了，含评分与短评）一键导出为 JSON 文件保存。
         </p>
         <div className="flex flex-wrap gap-2">
           <button
@@ -1118,6 +1161,16 @@ export default function SettingsPage() {
             className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 transition hover:border-amber-400/50 disabled:opacity-50"
           >
             {bridgeBusy === "export" ? "导出中…" : "导出本地标记到 NeoDB"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void exportNeoDBData()}
+            disabled={bridgeBusy !== null}
+            className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 transition hover:border-amber-400/50 disabled:opacity-50"
+          >
+            {bridgeBusy === "exportData"
+              ? "导出中…"
+              : "导出 NeoDB 全部数据（JSON）"}
           </button>
         </div>
         {bridgeMsg && (

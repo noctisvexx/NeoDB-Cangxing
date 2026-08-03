@@ -9,6 +9,7 @@ let serverChild = null;
 let windowOpened = false;
 let mainWindow = null;
 let configTimer = null;
+let authTimer = null;
 
 // 应用级配置（局域网访问 / 开机自启），保存在 userData/app-config.json
 let appConfig = { lanMode: false, autoLaunch: false };
@@ -164,6 +165,49 @@ function watchConfig() {
   }
 }
 
+function isInternalUrl(url) {
+  try {
+    const u = new URL(url);
+    return (
+      (u.hostname === "127.0.0.1" || u.hostname === "localhost") &&
+      (u.port === "" || u.port === String(PORT))
+    );
+  } catch {
+    return false;
+  }
+}
+
+// 窗口内导航到外部站点（如 NeoDB OAuth 登录页）时，改为用系统默认浏览器打开，
+// 避免登录页把应用窗口"劫持"走
+function openExternalNavigation(event, url) {
+  if (isInternalUrl(url)) return;
+  event.preventDefault();
+  shell.openExternal(url);
+}
+
+// NeoDB 授权在系统浏览器完成后，令牌文件变化时自动刷新应用窗口
+function watchAuthFile() {
+  const authDir = path.join(app.getPath("userData"), "data");
+  try {
+    fs.mkdirSync(authDir, { recursive: true });
+  } catch {
+    // 忽略
+  }
+  try {
+    fs.watch(authDir, (_event, filename) => {
+      if (filename && filename !== "neodb-auth.json") return;
+      clearTimeout(authTimer);
+      authTimer = setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.reload();
+        }
+      }, 800);
+    });
+  } catch (e) {
+    console.error("监听 NeoDB 令牌失败：", e.message);
+  }
+}
+
 function createWindow(url = `http://127.0.0.1:${PORT}`) {
   windowOpened = true;
   mainWindow = new BrowserWindow({
@@ -181,6 +225,12 @@ function createWindow(url = `http://127.0.0.1:${PORT}`) {
   mainWindow.webContents.setWindowOpenHandler(({ url: u }) => {
     shell.openExternal(u);
     return { action: "deny" };
+  });
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    openExternalNavigation(event, url);
+  });
+  mainWindow.webContents.on("will-redirect", (event, url) => {
+    openExternalNavigation(event, url);
   });
   mainWindow.loadURL(url);
 }
@@ -218,6 +268,7 @@ app.whenReady().then(() => {
   }
   // 始终监听配置目录，首次在设置页开启开关时也能生效
   watchConfig();
+  watchAuthFile();
 });
 
 app.on("window-all-closed", () => {

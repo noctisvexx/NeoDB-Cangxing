@@ -137,7 +137,6 @@ export default function SourceSection({
             <ItemCard
               key={item.uuid}
               item={item}
-              source={usingTabs ? active?.tabs?.[tabIdx]?.label : active?.label}
               square={active?.square}
             />
           ))}

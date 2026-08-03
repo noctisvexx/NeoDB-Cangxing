@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AiRecommend from "@/components/AiRecommend";
+import StarTrail from "@/components/StarTrail";
 import SourceSection, {
   type SourceOption,
 } from "@/components/SourceSection";
@@ -374,6 +375,7 @@ export default async function HomePage() {
 
   return (
     <div>
+      <StarTrail />
       <section className="relative overflow-hidden border-b border-white/5">
         <div
           className="pointer-events-none absolute inset-0 opacity-60"
@@ -386,9 +388,66 @@ export default async function HomePage() {
           <p className="mb-2 text-sm tracking-widest text-amber-400/90">
             藏星 · CANGXING
           </p>
-          <h1 className="hero-title text-3xl font-bold sm:text-4xl">
-            发现正在闪耀的作品
-          </h1>
+          <div className="relative mx-auto mt-4 w-fit px-12">
+            <div
+              className="hero-glow pointer-events-none absolute inset-0 -z-10 rounded-full"
+              style={{
+                background:
+                  "radial-gradient(ellipse 60% 130% at 50% 50%, var(--accent-soft), transparent 72%)",
+              }}
+            />
+            <span
+              className="sparkle"
+              style={{ left: "-30px", top: "50%", animationDelay: "0s" }}
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M12 2c1.2 5.5 4.3 8.8 10 10-5.7 1.2-8.8 4.5-10 10-1.2-5.5-4.3-8.8-10-10 5.7-1.2 8.8-4.5 10-10Z" />
+              </svg>
+            </span>
+            <span
+              className="sparkle"
+              style={{ right: "-36px", top: "8%", animationDelay: "0.8s" }}
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M12 2c1.2 5.5 4.3 8.8 10 10-5.7 1.2-8.8 4.5-10 10-1.2-5.5-4.3-8.8-10-10 5.7-1.2 8.8-4.5 10-10Z" />
+              </svg>
+            </span>
+            <span
+              className="sparkle sparkle-sm"
+              style={{ left: "-48px", bottom: "-4px", animationDelay: "1.5s" }}
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M12 2c1.2 5.5 4.3 8.8 10 10-5.7 1.2-8.8 4.5-10 10-1.2-5.5-4.3-8.8-10-10 5.7-1.2 8.8-4.5 10-10Z" />
+              </svg>
+            </span>
+            <span
+              className="sparkle sparkle-sm"
+              style={{ right: "-52px", bottom: "-10px", animationDelay: "2.1s" }}
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M12 2c1.2 5.5 4.3 8.8 10 10-5.7 1.2-8.8 4.5-10 10-1.2-5.5-4.3-8.8-10-10 5.7-1.2 8.8-4.5 10-10Z" />
+              </svg>
+            </span>
+            <span
+              className="sparkle sparkle-xs"
+              style={{ left: "14%", top: "-28px", animationDelay: "0.4s" }}
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M12 2c1.2 5.5 4.3 8.8 10 10-5.7 1.2-8.8 4.5-10 10-1.2-5.5-4.3-8.8-10-10 5.7-1.2 8.8-4.5 10-10Z" />
+              </svg>
+            </span>
+            <span
+              className="sparkle sparkle-xs"
+              style={{ right: "12%", top: "-32px", animationDelay: "1.1s" }}
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M12 2c1.2 5.5 4.3 8.8 10 10-5.7 1.2-8.8 4.5-10 10-1.2-5.5-4.3-8.8-10-10 5.7-1.2 8.8-4.5 10-10Z" />
+              </svg>
+            </span>
+            <h1 className="hero-title text-3xl font-bold sm:text-4xl">
+              发现正在闪耀的作品
+            </h1>
+          </div>
           <p className="mx-auto mt-3 max-w-xl text-sm text-zinc-400">
             探索电影、剧集、游戏、音乐与播客的最新趋势。
           </p>

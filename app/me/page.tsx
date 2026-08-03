@@ -6,11 +6,9 @@ import AiProfile from "@/components/AiProfile";
 import ConnectNeoDB from "@/components/ConnectNeoDB";
 import LocalProfileCard from "@/components/LocalProfileCard";
 import LocalBridge from "@/components/LocalBridge";
-import { neoDbClientId, neoDbToken } from "@/lib/config";
+import { neoDbClientId, neoDbInstance, neoDbToken } from "@/lib/config";
 import { getMe, getShelf } from "@/lib/neodb";
 import { loadAuthFile } from "@/lib/neodb-auth";
-import { loadProfile } from "@/lib/local-profile";
-import type { LocalProfile } from "@/lib/local-profile";
 import { loadMarks } from "@/lib/local-marks";
 import type { LocalMark } from "@/lib/local-marks";
 import {
@@ -81,6 +79,18 @@ function SetupGuide({
               </details>
             </div>
           )}
+          <p className="mt-3 text-sm text-zinc-500">
+            还没有 NeoDB 账号？{" "}
+            <a
+              href={`${neoDbInstance()}/account/login`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-amber-400 hover:underline"
+            >
+              去注册
+            </a>
+            （登录页支持邮箱注册，也可用 Mastodon / Bluesky 登录）
+          </p>
         </div>
         <details className="text-sm">
           <summary className="cursor-pointer text-zinc-400 hover:text-zinc-200">
@@ -243,6 +253,17 @@ async function LocalModePage({
         ) : (
           <ConnectNeoDB label="一键创建应用并连接 NeoDB（可选）" />
         )}
+        <p className="mt-3 text-sm text-zinc-500">
+          还没有 NeoDB 账号？{" "}
+          <a
+            href={`${neoDbInstance()}/account/login`}
+            target="_blank"
+            rel="noreferrer"
+            className="text-amber-400 hover:underline"
+          >
+            去注册
+          </a>
+        </p>
       </div>
       <LocalBridge neodbConnected={false} />
       {marks.length > 0 ? (
@@ -286,10 +307,7 @@ export default async function MePage({
   ]);
 
   const authFailed = me === null;
-  const profile = await loadProfile().catch(() => ({} as LocalProfile));
-  const displayName =
-    profile.nickname || me?.display_name || me?.username || "我的";
-  const headerAvatar = profile.avatar || me?.avatar || null;
+  const displayName = me?.display_name || me?.username || "我的";
   const seenUuid = new Set<string>();
   const allComplete: NeoDBMark[] = [];
   for (const page of [complete, ...extra]) {
@@ -342,10 +360,10 @@ export default async function MePage({
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="mb-1 flex items-center gap-3">
-            {headerAvatar && (
+            {me && typeof me.avatar === "string" && me.avatar && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={headerAvatar}
+                src={me.avatar}
                 alt=""
                 className="h-12 w-12 rounded-full border border-white/10 object-cover"
               />
@@ -368,10 +386,6 @@ export default async function MePage({
             重新连接 NeoDB
           </a>
         )}
-      </div>
-
-      <div className="mb-6">
-        <LocalProfileCard />
       </div>
 
       {authFailed && (

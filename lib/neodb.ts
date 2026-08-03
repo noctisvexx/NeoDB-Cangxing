@@ -162,6 +162,34 @@ export function getShelf(
   return request<Paged<NeoDBMark>>(`/api/me/shelf/${type}?${params.toString()}`);
 }
 
+/** 拉取全部书架（想看/在看/已看/弃了），供导入本地或导出备份使用 */
+export async function fetchAllShelfMarks(
+  maxPagesPerShelf = 50,
+): Promise<{ marks: NeoDBMark[]; errors: string[] }> {
+  const shelves: ShelfType[] = ["wishlist", "progress", "complete", "dropped"];
+  const errors: string[] = [];
+  const out: NeoDBMark[] = [];
+  for (const shelf of shelves) {
+    for (let page = 1; page <= maxPagesPerShelf; page++) {
+      let result: Paged<NeoDBMark> | null = null;
+      try {
+        result = await getShelf(shelf, page, 100);
+      } catch (e) {
+        errors.push(
+          `${shelf} 第 ${page} 页读取失败：${
+            e instanceof Error ? e.message : "未知错误"
+          }`,
+        );
+        break;
+      }
+      const marks = result?.data ?? [];
+      out.push(...marks);
+      if (marks.length < 100) break;
+    }
+  }
+  return { marks: out, errors };
+}
+
 export function markItem(
   uuid: string,
   body: {

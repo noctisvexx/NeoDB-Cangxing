@@ -29,9 +29,9 @@ export default function ThemeToggle() {
       type="button"
       onClick={toggle}
       title={theme === "dark" ? "切换到日间" : "切换到夜间"}
-      className="rounded-full border border-white/5 bg-zinc-900/60 px-3 py-1.5 text-sm text-zinc-300 transition hover:border-amber-400/50 hover:text-amber-300"
+      className="flex items-center gap-1 rounded-full border border-white/5 bg-zinc-900/60 px-2.5 py-1.5 text-sm text-zinc-300 transition hover:border-amber-400/50 hover:text-amber-300 sm:px-3"
     >
-      {theme === "dark" ? "☀️ 日间" : "🌙 夜间"}
+      <span aria-hidden="true">{theme === "dark" ? "☀️" : "🌙"}</span>
     </button>
   );
 }

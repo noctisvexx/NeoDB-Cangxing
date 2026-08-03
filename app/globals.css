@@ -296,3 +296,94 @@ body {
   background-clip: text;
   color: transparent;
 }
+
+/* ── 星光特效 ── */
+@keyframes sparkle-twinkle {
+  0%,
+  100% {
+    opacity: 0.1;
+    transform: scale(0.55) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1) rotate(18deg);
+  }
+}
+
+.sparkle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  color: var(--accent);
+  pointer-events: none;
+  opacity: 0.3;
+  /* 只在网页打开的前几秒闪烁，之后保持安静的小星星 */
+  animation: sparkle-twinkle 1.2s ease-in-out 3 both;
+  animation-delay: var(--sparkle-delay, 0s);
+  filter: drop-shadow(0 0 6px var(--accent));
+}
+
+.sparkle-sm {
+  width: 14px;
+  height: 14px;
+}
+
+.sparkle-xs {
+  width: 10px;
+  height: 10px;
+}
+
+.sparkle svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  fill: currentColor;
+}
+
+@keyframes hero-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+.hero-glow {
+  opacity: 0.35;
+  animation: hero-glow-pulse 1.8s ease-in-out 3 both;
+}
+
+/* 鼠标滑过时出现的星星轨迹 */
+@keyframes cursor-star-anim {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.35) rotate(0deg);
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--drift-x, 0), var(--drift-y, -24px))
+      scale(1.05) rotate(45deg);
+  }
+}
+
+.cursor-star {
+  position: fixed;
+  pointer-events: none;
+  z-index: 40;
+  color: var(--accent);
+  opacity: 0;
+  animation: cursor-star-anim 0.75s ease-out forwards;
+  filter: drop-shadow(0 0 5px var(--accent));
+}
+
+.cursor-star svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  fill: currentColor;
+}
