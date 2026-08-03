@@ -1,3 +1,4 @@
+import type { LocalMark } from "./local-marks";
 import type { LocalizedLabel, NeoDBItem } from "./types";
 
 // 中文标题优先级：简体优先，繁体靠后
@@ -264,4 +265,22 @@ export function asArray<T>(v: T | T[] | null | undefined): T[] {
   if (Array.isArray(v)) return v;
   if (v == null) return [];
   return [v];
+}
+
+/** 把本地标记转成条目卡片所需的最小 NeoDBItem，uuid 优先用 NeoDB 对应条目 */
+export function localMarkToItem(mark: LocalMark): NeoDBItem {
+  const rawUuid = mark.neodbUuid || mark.id || mark.title;
+  const uuid = rawUuid.startsWith("neodb-")
+    ? rawUuid.slice("neodb-".length)
+    : rawUuid;
+  return {
+    uuid,
+    title: mark.title,
+    display_title: mark.title,
+    category: mark.category,
+    cover_image_url: mark.cover,
+    year: mark.year,
+    rating: mark.rating,
+    rating_count: 0,
+  };
 }

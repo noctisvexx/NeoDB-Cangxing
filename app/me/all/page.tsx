@@ -2,9 +2,10 @@ import Link from "next/link";
 import CoverCard from "@/components/CoverCard";
 import { neoDbToken } from "@/lib/config";
 import { getShelf } from "@/lib/neodb";
+import { loadMarks } from "@/lib/local-marks";
 import { CATEGORY_META } from "@/lib/categories";
-import type { NeoDBMark } from "@/lib/types";
-import { compactItem } from "@/lib/utils";
+import type { NeoDBMark, ShelfType } from "@/lib/types";
+import { compactItem, localMarkToItem } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,13 @@ const KIND_TITLES: Record<string, string> = {
   game: "最近游戏",
   music: "最近音乐",
   podcast: "最近播客",
+};
+
+const SHELF_TITLES: Record<string, string> = {
+  wishlist: "想看",
+  progress: "在看",
+  complete: "已看",
+  dropped: "弃了",
 };
 
 async function fetchAllShelf(
@@ -47,10 +55,54 @@ async function fetchAllShelf(
 export default async function AllItemsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ kind?: string }>;
+  searchParams: Promise<{ kind?: string; source?: string; shelf?: string }>;
 }) {
-  const { kind = "favorites" } = await searchParams;
+  const { kind = "favorites", source, shelf } = await searchParams;
   const token = await neoDbToken();
+
+  // 本地档案模式：展示本地标记（不需要 NeoDB）
+  if (source === "local") {
+    const marks = await loadMarks().catch(() => []);
+    const filterShelf = shelf && (["wishlist", "progress", "complete", "dropped"] as ShelfType[]).includes(shelf as ShelfType)
+      ? (shelf as ShelfType)
+      : null;
+    const filterCategory =
+      kind && kind !== "all" && CATEGORY_META[kind] ? kind : null;
+    const filtered = marks
+      .filter((m) => (!filterShelf || m.shelf === filterShelf) && (!filterCategory || m.category === filterCategory))
+      .sort((a, b) => (b.updated || "").localeCompare(a.updated || ""));
+    const title = filterShelf
+      ? `${SHELF_TITLES[filterShelf]} · 本地档案`
+      : filterCategory
+        ? `${CATEGORY_META[filterCategory].label} · 本地档案`
+        : "全部本地标记";
+    return (
+      <div className="mx-auto w-full max-w-5xl px-4 py-8">
+        <div className="mb-6 flex items-center justify-between">
+          <h1 className="title-accent text-2xl font-bold">
+            {title}
+            <span className="ml-2 text-sm font-normal text-zinc-500">
+              共 {filtered.length} 个
+            </span>
+          </h1>
+          <Link href="/me" className="text-sm text-amber-400 hover:underline">
+            ← 返回我的
+          </Link>
+        </div>
+        {filtered.length > 0 ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
+            {filtered.map((m) => (
+              <CoverCard key={m.id} item={localMarkToItem(m)} />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-zinc-800 px-4 py-10 text-center text-sm text-zinc-500">
+            这个列表还是空的。
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (!token) {
     return (

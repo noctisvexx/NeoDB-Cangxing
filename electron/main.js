@@ -74,6 +74,7 @@ function startServer() {
       // 局域网模式监听所有网卡，否则仅本机
       HOSTNAME: appConfig.lanMode ? "0.0.0.0" : "127.0.0.1",
       NODE_ENV: "production",
+      APP_VERSION: app.getVersion(),
       CANGXING_DATA_DIR: app.getPath("userData"),
       NEO_DB_REDIRECT_URI: `http://localhost:${PORT}/api/auth/callback`,
     },

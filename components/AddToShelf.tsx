@@ -10,21 +10,53 @@ export interface InitialMark {
   commentText?: string | null;
 }
 
+export interface LocalItemInfo {
+  id: string;
+  title: string;
+  category?: string;
+  cover?: string;
+  year?: number;
+  sourceUrl?: string;
+}
+
+export interface InitialLocalMark {
+  shelf?: ShelfType | null;
+  rating?: number | null;
+  comment?: string | null;
+}
+
 export default function AddToShelf({
   itemUuid,
   initialMark,
   category,
+  neodbEnabled = true,
+  localItem,
+  initialLocalMark,
 }: {
   itemUuid: string;
   initialMark: InitialMark;
   category?: string;
+  neodbEnabled?: boolean;
+  localItem?: LocalItemInfo;
+  initialLocalMark?: InitialLocalMark | null;
 }) {
   const labels = shelfLabelsFor(category);
+  const isLocal = !neodbEnabled;
   const [shelfType, setShelfType] = useState<ShelfType>(
-    initialMark.shelfType ?? "wishlist",
+    isLocal
+      ? (initialLocalMark?.shelf ?? "wishlist")
+      : (initialMark.shelfType ?? "wishlist"),
   );
-  const [rating, setRating] = useState<number>(initialMark.ratingGrade ?? 8);
-  const [comment, setComment] = useState(initialMark.commentText ?? "");
+  const [rating, setRating] = useState<number>(
+    isLocal
+      ? (initialLocalMark?.rating ?? 8)
+      : (initialMark.ratingGrade ?? 8),
+  );
+  const [comment, setComment] = useState(
+    isLocal
+      ? (initialLocalMark?.comment ?? "")
+      : (initialMark.commentText ?? ""),
+  );
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +66,29 @@ export default function AddToShelf({
     setMessage(null);
     setError(null);
     try {
+      if (isLocal) {
+        if (!localItem?.id) throw new Error("缺少条目信息，无法保存到本地档案");
+        const res = await fetch("/api/local/marks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: localItem.id,
+            title: localItem.title,
+            category: category || localItem.category,
+            cover: localItem.cover,
+            year: localItem.year,
+            shelf: nextType,
+            rating: nextType === "complete" ? rating : undefined,
+            comment: comment.trim() || undefined,
+            sourceUrl: localItem.sourceUrl,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "保存失败");
+        setShelfType(nextType);
+        setMessage(`已保存到本地档案「${labels[nextType]}」✓（未同步 NeoDB）`);
+        return;
+      }
       const res = await fetch("/api/shelf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -60,6 +115,18 @@ export default function AddToShelf({
     setMessage(null);
     setError(null);
     try {
+      if (isLocal) {
+        if (!localItem?.id) throw new Error("缺少条目信息");
+        const res = await fetch(
+          `/api/local/marks?id=${encodeURIComponent(localItem.id)}`,
+          { method: "DELETE" },
+        );
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "移除失败");
+        setShelfType("wishlist");
+        setMessage("已从本地档案移除");
+        return;
+      }
       const res = await fetch(
         `/api/shelf?itemUuid=${encodeURIComponent(itemUuid)}`,
         { method: "DELETE" },
@@ -77,6 +144,11 @@ export default function AddToShelf({
 
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
+      {isLocal && (
+        <p className="mb-3 rounded-lg bg-zinc-800/70 px-3 py-2 text-xs text-zinc-400">
+          本地档案模式：不连接 NeoDB 也能记录，数据保存在本机，可随加密备份一起同步。
+        </p>
+      )}
       <div className="mb-3 flex flex-wrap gap-2">
         {(Object.keys(labels) as ShelfType[]).map((t) => (
           <button
@@ -130,9 +202,13 @@ export default function AddToShelf({
           disabled={busy}
           className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-zinc-950 transition hover:bg-amber-400 disabled:opacity-50"
         >
-          {busy ? "同步中…" : "保存到 NeoDB"}
+          {busy
+            ? "保存中…"
+            : isLocal
+              ? "保存到本地档案"
+              : "保存到 NeoDB"}
         </button>
-        {initialMark.shelfType && (
+        {(isLocal ? initialLocalMark?.shelf : initialMark.shelfType) && (
           <button
             type="button"
             onClick={remove}
@@ -146,7 +222,8 @@ export default function AddToShelf({
 
       {message && <p className="mt-3 text-sm text-emerald-400">{message}</p>}
       {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
-      {initialMark.shelfType &&
+      {!isLocal &&
+        initialMark.shelfType &&
         (initialMark.ratingGrade != null ||
           (initialMark.commentText ?? "").trim()) && (
           <div className="mt-3 rounded-lg border border-amber-400/20 bg-amber-500/5 p-3">
@@ -161,6 +238,26 @@ export default function AddToShelf({
             {(initialMark.commentText ?? "").trim() && (
               <p className="mt-1 text-sm leading-relaxed text-zinc-300">
                 「{initialMark.commentText}」
+              </p>
+            )}
+          </div>
+        )}
+      {isLocal &&
+        initialLocalMark?.shelf &&
+        (initialLocalMark.rating != null ||
+          (initialLocalMark.comment ?? "").trim()) && (
+          <div className="mt-3 rounded-lg border border-amber-400/20 bg-amber-500/5 p-3">
+            <p className="text-xs text-zinc-500">
+              我的本地标记：{labels[initialLocalMark.shelf]}
+            </p>
+            {initialLocalMark.rating != null && (
+              <p className="mt-1 text-sm text-amber-400">
+                ★ 我的评分：{initialLocalMark.rating}/10
+              </p>
+            )}
+            {(initialLocalMark.comment ?? "").trim() && (
+              <p className="mt-1 text-sm leading-relaxed text-zinc-300">
+                「{initialLocalMark.comment}」
               </p>
             )}
           </div>

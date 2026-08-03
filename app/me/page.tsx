@@ -4,12 +4,22 @@ import CoverCard from "@/components/CoverCard";
 import Heatmap from "@/components/Heatmap";
 import AiProfile from "@/components/AiProfile";
 import ConnectNeoDB from "@/components/ConnectNeoDB";
+import LocalProfileCard from "@/components/LocalProfileCard";
+import LocalBridge from "@/components/LocalBridge";
 import { neoDbClientId, neoDbToken } from "@/lib/config";
 import { getMe, getShelf } from "@/lib/neodb";
 import { loadAuthFile } from "@/lib/neodb-auth";
-import { CATEGORY_META } from "@/lib/categories";
-import type { NeoDBMark } from "@/lib/types";
-import { compactItem } from "@/lib/utils";
+import { loadProfile } from "@/lib/local-profile";
+import type { LocalProfile } from "@/lib/local-profile";
+import { loadMarks } from "@/lib/local-marks";
+import type { LocalMark } from "@/lib/local-marks";
+import {
+  CATEGORY_META,
+  SHELF_LABELS,
+  shelfLabelsFor,
+} from "@/lib/categories";
+import type { NeoDBMark, ShelfType } from "@/lib/types";
+import { compactItem, localMarkToItem } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -135,6 +145,121 @@ function StatCard({
   );
 }
 
+const LOCAL_SHELF_ORDER: ShelfType[] = [
+  "wishlist",
+  "progress",
+  "complete",
+  "dropped",
+];
+
+function LocalMarksSections({ marks }: { marks: LocalMark[] }) {
+  const byShelf = new Map<ShelfType, LocalMark[]>();
+  for (const m of marks) {
+    if (!byShelf.has(m.shelf)) byShelf.set(m.shelf, []);
+    byShelf.get(m.shelf)?.push(m);
+  }
+  return (
+    <>
+      {LOCAL_SHELF_ORDER.filter((s) => byShelf.has(s)).map((shelf) => {
+        const items = byShelf.get(shelf) ?? [];
+        const categories = [
+          ...new Set(
+            items
+              .map((i) => i.category)
+              .filter((c): c is string => !!c),
+          ),
+        ];
+        const title =
+          categories.length === 1
+            ? shelfLabelsFor(categories[0])[shelf]
+            : SHELF_LABELS[shelf];
+        return (
+          <section key={shelf} className="mb-8">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="title-accent text-xl font-bold">{title}</h2>
+              <Link
+                href={`/me/all?source=local&shelf=${shelf}`}
+                className="text-sm text-amber-400 hover:underline"
+              >
+                查看全部 →
+              </Link>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {items.slice(0, 20).map((m) => (
+                <div key={m.id} className="w-36 shrink-0">
+                  <CoverCard item={localMarkToItem(m)} />
+                </div>
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </>
+  );
+}
+
+async function LocalModePage({
+  clientIdConfigured,
+}: {
+  clientIdConfigured: boolean;
+}) {
+  const marks = await loadMarks().catch(() => []);
+  const countByShelf = (shelf: ShelfType) =>
+    marks.filter((m) => m.shelf === shelf).length;
+  return (
+    <div className="mx-auto w-full max-w-5xl px-4 py-8">
+      <h1 className="title-accent mb-4 text-2xl font-bold">我的</h1>
+      <LocalProfileCard />
+      <div className="mb-4 mt-4 grid grid-cols-3 gap-3">
+        <StatCard
+          label="想看"
+          count={countByShelf("wishlist")}
+          href="/me/all?source=local&shelf=wishlist"
+        />
+        <StatCard
+          label="在看"
+          count={countByShelf("progress")}
+          href="/me/all?source=local&shelf=progress"
+        />
+        <StatCard
+          label="已看"
+          count={countByShelf("complete")}
+          href="/me/all?source=local&shelf=complete"
+        />
+      </div>
+      <div className="mb-4 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
+        <h2 className="title-accent mb-2 text-lg font-bold">本地模式</h2>
+        <p className="mb-3 text-sm text-zinc-400">
+          标记保存在本机，不依赖 NeoDB；头像与标记可一起在设置页加密备份 / 同步到
+          WebDAV。NeoDB 是可选项：
+        </p>
+        {clientIdConfigured ? (
+          <a
+            href="/api/auth/neodb"
+            className="inline-block rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-zinc-950 transition hover:bg-amber-400"
+          >
+            连接到 NeoDB（读取 / 同步标记）
+          </a>
+        ) : (
+          <ConnectNeoDB label="一键创建应用并连接 NeoDB（可选）" />
+        )}
+      </div>
+      <LocalBridge neodbConnected={false} />
+      {marks.length > 0 ? (
+        <LocalMarksSections marks={marks} />
+      ) : (
+        <div className="rounded-xl border border-dashed border-zinc-800 px-4 py-10 text-center text-sm text-zinc-500">
+          本地还没有标记，去
+          <Link href="/" className="mx-1 text-amber-400 hover:underline">
+            发现页
+          </Link>
+          逛逛，详情页可以直接保存到本地档案。
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default async function MePage({
   searchParams,
 }: {
@@ -146,7 +271,7 @@ export default async function MePage({
   const oauthFile = await loadAuthFile();
   const oauthConnected = !!oauthFile?.access_token;
 
-  if (!token) return <SetupGuide clientIdConfigured={clientIdConfigured} />;
+  if (!token) return <LocalModePage clientIdConfigured={clientIdConfigured} />;
 
   const [me, wishlist, complete, progress, extra] = await Promise.all([
     getMe().catch(() => null),
@@ -161,6 +286,10 @@ export default async function MePage({
   ]);
 
   const authFailed = me === null;
+  const profile = await loadProfile().catch(() => ({} as LocalProfile));
+  const displayName =
+    profile.nickname || me?.display_name || me?.username || "我的";
+  const headerAvatar = profile.avatar || me?.avatar || null;
   const seenUuid = new Set<string>();
   const allComplete: NeoDBMark[] = [];
   for (const page of [complete, ...extra]) {
@@ -213,17 +342,15 @@ export default async function MePage({
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="mb-1 flex items-center gap-3">
-            {me && typeof me.avatar === "string" && me.avatar && (
+            {headerAvatar && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={me.avatar}
+                src={headerAvatar}
                 alt=""
                 className="h-12 w-12 rounded-full border border-white/10 object-cover"
               />
             )}
-            <h1 className="text-2xl font-bold">
-              {me?.display_name || me?.username || "我的"}
-            </h1>
+            <h1 className="text-2xl font-bold">{displayName}</h1>
           </div>
           <p className="text-sm text-zinc-500">
             {me && (me.display_name || me.username)
@@ -241,6 +368,10 @@ export default async function MePage({
             重新连接 NeoDB
           </a>
         )}
+      </div>
+
+      <div className="mb-6">
+        <LocalProfileCard />
       </div>
 
       {authFailed && (

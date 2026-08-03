@@ -130,6 +130,9 @@ export default function SettingsPage() {
   const [webdavPass, setWebdavPass] = useState("");
   const [backupMsg, setBackupMsg] = useState<string | null>(null);
   const [backupError, setBackupError] = useState<string | null>(null);
+  const [bridgeBusy, setBridgeBusy] = useState<"import" | "export" | null>(null);
+  const [bridgeMsg, setBridgeMsg] = useState<string | null>(null);
+  const [bridgeError, setBridgeError] = useState<string | null>(null);
   const [sysConfig, setSysConfig] = useState<{
     lanMode: boolean;
     autoLaunch: boolean;
@@ -374,6 +377,17 @@ export default function SettingsPage() {
   async function currentPayload() {
     const res = await fetch("/api/settings");
     const data = await res.json();
+    const [profileRes, marksRes] = await Promise.all([
+      fetch("/api/profile"),
+      fetch("/api/local/marks"),
+    ]);
+    const profile = (await profileRes.json().catch(() => ({}))) as {
+      nickname?: string;
+      avatar?: string;
+    };
+    const marksData = (await marksRes.json().catch(() => ({}))) as {
+      marks?: unknown[];
+    };
     return {
       tmdbApiKey: data.tmdbApiKey ?? "",
       omdbApiKey: data.omdbApiKey ?? "",
@@ -384,17 +398,39 @@ export default function SettingsPage() {
       neoDbClientId: data.neoDbClientId ?? "",
       neoDbClientSecret: data.neoDbClientSecret ?? "",
       sectionOrder: data.sectionOrder ?? undefined,
+      profile:
+        profile.nickname || profile.avatar ? profile : undefined,
+      localMarks: Array.isArray(marksData.marks)
+        ? marksData.marks
+        : undefined,
     };
   }
 
   async function applyPayload(payload: Record<string, unknown>) {
+    const { profile, localMarks, ...settingsPayload } = payload;
     const res = await fetch("/api/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(settingsPayload),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? "应用失败");
+    if (profile && typeof profile === "object") {
+      const r = await fetch("/api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(profile),
+      });
+      if (!r.ok) throw new Error("恢复本地档案失败");
+    }
+    if (Array.isArray(localMarks)) {
+      const r = await fetch("/api/local/marks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "import", marks: localMarks }),
+      });
+      if (!r.ok) throw new Error("恢复本地标记失败");
+    }
     window.location.reload();
   }
 
@@ -483,6 +519,42 @@ export default function SettingsPage() {
       setBackupError(
         e instanceof Error ? e.message : "下载/解密失败（密码可能不对）",
       );
+    }
+  }
+
+  async function runBridge(kind: "import" | "export") {
+    setBridgeBusy(kind);
+    setBridgeMsg(null);
+    setBridgeError(null);
+    try {
+      const res = await fetch(
+        kind === "import"
+          ? "/api/local/import-neodb"
+          : "/api/local/export-neodb",
+        { method: "POST" },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "操作失败");
+      if (kind === "import") {
+        setBridgeMsg(
+          `已从 NeoDB 导入 ${data.imported ?? 0} 条标记到本地档案${
+            data.total ? `（共读取 ${data.total} 条）` : ""
+          }${data.errors?.length ? `，另有 ${data.errors.length} 处读取告警` : ""}`,
+        );
+      } else {
+        setBridgeMsg(
+          `已导出 ${data.exported ?? 0} 条到 NeoDB${
+            data.matched ? `（其中新匹配条目 ${data.matched} 条）` : ""
+          }${data.failed ? `，${data.failed} 条失败` : ""}`,
+        );
+      }
+      if (data.errors?.length) {
+        setBridgeError((data.errors as string[]).slice(0, 5).join("；"));
+      }
+    } catch (e) {
+      setBridgeError(e instanceof Error ? e.message : "操作失败");
+    } finally {
+      setBridgeBusy(null);
     }
   }
 
@@ -1025,11 +1097,43 @@ export default function SettingsPage() {
       </div>
       <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
         <h2 className="mb-2 font-medium text-zinc-100">
+          ⑦ 本地 ↔ NeoDB 数据桥接
+        </h2>
+        <p className="mb-3 text-xs text-zinc-500">
+          本地标记是给不使用 NeoDB 的朋友准备的：可把自己在 NeoDB 的整个书架导入成本地标记（随备份一起加密同步），也可把本地标记一次性同步回 NeoDB。需要先完成 NeoDB 账号授权。
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void runBridge("import")}
+            disabled={bridgeBusy !== null}
+            className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-zinc-950 transition hover:bg-amber-400 disabled:opacity-50"
+          >
+            {bridgeBusy === "import" ? "导入中…" : "从 NeoDB 导入到本地"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void runBridge("export")}
+            disabled={bridgeBusy !== null}
+            className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 transition hover:border-amber-400/50 disabled:opacity-50"
+          >
+            {bridgeBusy === "export" ? "导出中…" : "导出本地标记到 NeoDB"}
+          </button>
+        </div>
+        {bridgeMsg && (
+          <p className="mt-3 text-sm text-emerald-400">{bridgeMsg}</p>
+        )}
+        {bridgeError && (
+          <p className="mt-3 text-sm text-red-400">{bridgeError}</p>
+        )}
+      </div>
+      <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
+        <h2 className="mb-2 font-medium text-zinc-100">
           ⑧ 数据备份（加密导出 / 导入 / WebDAV 同步）
         </h2>
         <p className="mb-3 text-xs text-zinc-500">
-          用密码（AES 加密）备份所有 Key 配置，可导出文件或同步到自己的 WebDAV
-          （如坚果云）。密码只在本机浏览器里使用，不会上传。
+          用密码（AES 加密）备份所有 Key 配置、本地档案（头像 / 昵称）与本地标记，
+          可导出文件或同步到自己的 WebDAV（如坚果云）。密码只在本机浏览器里使用，不会上传。
         </p>
         <label className="mb-3 block text-sm">
           <span className="mb-1 flex items-center justify-between text-zinc-400">

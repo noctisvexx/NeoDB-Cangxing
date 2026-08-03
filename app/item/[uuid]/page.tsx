@@ -5,8 +5,9 @@ import { cached } from "@/lib/cache";
 import AddToShelf from "@/components/AddToShelf";
 import ItemCard from "@/components/ItemCard";
 import Rating from "@/components/Rating";
-import { hasTmdb, wereadApiKey } from "@/lib/config";
+import { hasTmdb, neoDbToken, wereadApiKey } from "@/lib/config";
 import { loadSettings } from "@/lib/local-settings";
+import { loadMarks } from "@/lib/local-marks";
 import {
   NeoDBFetchPendingError,
   fetchItemByUrl,
@@ -593,6 +594,10 @@ export default async function ItemPage({
 
   const itemUuid = item.uuid;
   const mark = await getMyMark(itemUuid).catch(() => null); // 书架状态实时获取
+  const neodbEnabled = !!(await neoDbToken());
+  const localMark = (await loadMarks().catch(() => [])).find(
+    (m) => m.id === uuid,
+  );
   const posts = commentPage ?? reviewPage;
   const tmdbConfigured = await hasTmdb();
 
@@ -926,6 +931,24 @@ export default async function ItemPage({
             <AddToShelf
               itemUuid={itemUuid}
               category={item.category}
+              neodbEnabled={neodbEnabled}
+              localItem={{
+                id: uuid,
+                title,
+                category: item.category,
+                cover: item.cover_image_url ?? undefined,
+                year: item.year ?? undefined,
+                sourceUrl: neodbUrl,
+              }}
+              initialLocalMark={
+                localMark
+                  ? {
+                      shelf: localMark.shelf,
+                      rating: localMark.rating ?? null,
+                      comment: localMark.comment ?? null,
+                    }
+                  : null
+              }
               initialMark={{
                 shelfType: mark?.shelf_type ?? null,
                 ratingGrade: mark?.rating_grade ?? null,
