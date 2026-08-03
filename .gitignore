@@ -19,6 +19,10 @@
 
 # production
 /build
+!/build/icon.png
+
+# electron-builder 输出
+/dist
 
 # misc
 .DS_Store
@@ -32,6 +36,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.local.example
+
+# 本地保存的 OAuth 令牌等状态
+/data
 
 # vercel
 .vercel

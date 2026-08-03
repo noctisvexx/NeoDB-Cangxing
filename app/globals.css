@@ -1,26 +1,298 @@
 @import "tailwindcss";
 
+/* ── 藏星配色：日间方案A（米白+星辰金）/ 夜间方案B（夜空深蓝+星光金） ── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --bg: #faf7f0;
+  --bg-soft: #f1ecdf;
+  --card: rgba(255, 255, 255, 0.9);
+  --card-strong: #ffffff;
+  --border: rgba(59, 51, 40, 0.13);
+  --text: #3b3328;
+  --text-2: #6b5d45;
+  --muted: #9c8f74;
+  --accent: #d6a84f;
+  --accent-soft: rgba(214, 168, 79, 0.16);
+  --star: #d6a84f;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --bg: #0f172a;
+    --bg-soft: #16203a;
+    --card: rgba(255, 255, 255, 0.045);
+    --card-strong: rgba(255, 255, 255, 0.09);
+    --border: rgba(214, 168, 79, 0.18);
+    --text: #f1ede3;
+    --text-2: #c9c2b0;
+    --muted: #8e8a7c;
+    --accent: #e3b968;
+    --accent-soft: rgba(227, 185, 104, 0.17);
+    --star: #e3b968;
   }
 }
 
+/* 手动指定主题（首页切换按钮），优先于系统设置 */
+:root[data-theme="light"] {
+  --bg: #faf7f0;
+  --bg-soft: #f1ecdf;
+  --card: rgba(255, 255, 255, 0.9);
+  --card-strong: #ffffff;
+  --border: rgba(59, 51, 40, 0.13);
+  --text: #3b3328;
+  --text-2: #6b5d45;
+  --muted: #9c8f74;
+  --accent: #d6a84f;
+  --accent-soft: rgba(214, 168, 79, 0.16);
+  --star: #d6a84f;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0f172a;
+  --bg-soft: #16203a;
+  --card: rgba(255, 255, 255, 0.045);
+  --card-strong: rgba(255, 255, 255, 0.09);
+  --border: rgba(214, 168, 79, 0.18);
+  --text: #f1ede3;
+  --text-2: #c9c2b0;
+  --muted: #8e8a7c;
+  --accent: #e3b968;
+  --accent-soft: rgba(227, 185, 104, 0.17);
+  --star: #e3b968;
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+html {
+  color-scheme: light dark;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family:
+    "MiSans",
+    "HarmonyOS Sans SC",
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    "PingFang SC",
+    "Microsoft YaHei",
+    sans-serif;
+  background-image:
+    radial-gradient(
+      ellipse 70% 50% at 50% -12%,
+      var(--accent-soft),
+      transparent
+    ),
+    radial-gradient(
+      ellipse 45% 35% at 92% 6%,
+      var(--accent-soft),
+      transparent
+    );
+  background-attachment: fixed;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ── 把 Tailwind 的 zinc/teal 颜色统一映射到贝壳黄主题（跟随系统亮暗） ── */
+.bg-zinc-950,
+.bg-\[\#07090d\] {
+  background-color: var(--bg) !important;
+}
+
+.bg-zinc-950\/80,
+.bg-\[\#07090d\]\/80 {
+  background-color: color-mix(in srgb, var(--bg) 82%, transparent) !important;
+}
+
+.bg-zinc-900,
+.bg-zinc-900\/70,
+.bg-zinc-900\/60,
+.bg-zinc-900\/50,
+.bg-zinc-900\/40,
+.bg-zinc-900\/30 {
+  background-color: var(--card) !important;
+}
+
+.bg-zinc-800,
+.bg-zinc-800\/80,
+.bg-zinc-800\/60 {
+  background-color: var(--card-strong) !important;
+}
+
+.bg-zinc-700 {
+  background-color: var(--accent-soft) !important;
+}
+
+.bg-black\/60,
+.bg-black\/50 {
+  background-color: var(--accent-soft) !important;
+}
+
+.text-zinc-50,
+.text-zinc-100,
+.text-zinc-200,
+.text-zinc-300,
+.text-white {
+  color: var(--text) !important;
+}
+
+.text-zinc-400,
+.text-zinc-500,
+.text-zinc-600 {
+  color: var(--muted) !important;
+}
+
+.placeholder\:text-zinc-500,
+.placeholder\:text-zinc-600 {
+  color: var(--muted) !important;
+}
+
+.border-zinc-800\/60,
+.border-zinc-800,
+.border-zinc-700,
+.border-zinc-700\/70,
+.border-zinc-600,
+.border-white\/5 {
+  border-color: var(--border) !important;
+}
+
+.border-dashed {
+  border-color: var(--border) !important;
+}
+
+.bg-teal-500\/10,
+.bg-teal-500\/15 {
+  background-color: var(--accent-soft) !important;
+}
+
+.text-teal-300,
+.text-teal-300\/90,
+.text-teal-200 {
+  color: var(--accent) !important;
+}
+
+.bg-teal-400 {
+  background-color: var(--accent) !important;
+  color: #241d12 !important;
+}
+
+.text-amber-400,
+.text-amber-300\/90,
+.text-amber-300,
+.text-amber-400\/90 {
+  color: var(--accent) !important;
+}
+
+.bg-amber-500,
+.bg-amber-500\/90,
+.bg-amber-500\/80 {
+  background-color: var(--accent) !important;
+  color: #241d12 !important;
+}
+
+.hover\:bg-amber-400:hover,
+.hover\:bg-amber-500\/90:hover {
+  background-color: var(--accent) !important;
+}
+
+.hover\:bg-zinc-800\/80:hover,
+.hover\:bg-zinc-800:hover,
+.hover\:bg-zinc-700:hover {
+  background-color: var(--card-strong) !important;
+}
+
+.hover\:border-zinc-600:hover,
+.hover\:border-zinc-500:hover {
+  border-color: var(--accent) !important;
+}
+
+.hover\:border-amber-400\/25:hover,
+.hover\:border-teal-400\/60:hover {
+  border-color: var(--accent) !important;
+}
+
+.hover\:text-white:hover,
+.hover\:text-zinc-200:hover,
+.hover\:text-teal-200:hover,
+.hover\:text-amber-200:hover {
+  color: var(--accent) !important;
+}
+
+.focus\:border-amber-500:focus,
+.focus\:border-teal-400:focus {
+  border-color: var(--accent) !important;
+}
+
+.from-amber-500\/50,
+.via-teal-400\/50 {
+  --tw-gradient-from: var(--accent) !important;
+  --tw-gradient-to: transparent !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.bg-gradient-to-br.from-white {
+  --tw-gradient-from: var(--text) !important;
+}
+
+/* ── 可读性：整体放大字号 ── */
+.text-xs {
+  font-size: 0.875rem !important;
+  line-height: 1.45 !important;
+}
+
+.text-sm {
+  font-size: 1rem !important;
+  line-height: 1.55 !important;
+}
+
+.text-lg {
+  font-size: 1.25rem !important;
+}
+
+.text-xl {
+  font-size: 1.375rem !important;
+}
+
+/* 标题的强调黄 */
+.title-accent {
+  color: var(--accent) !important;
+}
+
+/* 首页大标题：亮暗模式下都可读（用主题色渐变） */
+.hero-title {
+  background-image: linear-gradient(
+    135deg,
+    var(--text),
+    var(--text-2) 55%,
+    var(--accent)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }

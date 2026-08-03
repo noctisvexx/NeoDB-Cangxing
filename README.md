@@ -1,36 +1,105 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 藏星 · CANGXING
 
-## Getting Started
+> NeoDB 的增强型内容发现工具 —— 发现正在闪耀的作品，寻找下一颗属于你的星。
 
-First, run the development server:
+**藏星是专门为 NeoDB 用户打造的书影音发现工具**：它补齐 NeoDB 缺少的"内容发现"能力，聚合电影、剧集、动漫、游戏、音乐、播客、书籍的趋势榜单；连接你的 NeoDB 账号后，可直接查看和同步书架、评分、评论，还能用 AI 探索下一部适合你的作品。
+
+> 需要 NeoDB 账号才能使用完整的书架与标记功能；榜单浏览不登录也可体验。
+
+核心理念：不是记录「我看过什么」，而是探索「世界正在闪耀什么」和「下一颗属于我的星在哪里」。
+
+---
+
+## 功能特性
+
+- **发现页**：热门电影 / 剧集（TMDB 多榜切换：热度、人数、评分、今日、上映、热映 / 在播）、动漫（Bangumi 趋势 / 在播 / 总榜）、书籍（NeoDB / 微信读书）、游戏（Steam 免费游玩 / 热卖 / NeoDB）、音乐与播客（Apple 榜 / NeoDB），所有栏目都可切换数据源
+- **作品详情页**：多平台评分（NeoDB / TMDB / Bangumi / IMDb）+ 评分差异分析 + AI 评分建议；相似作品；评论聚合（长评 + 短评）；书架一键标记（想看 / 已看 / 评分 / 短评）
+- **NeoDB 集成**：一键创建应用并授权，读写你的书架、评分、评论；详情页自动匹配 NeoDB 已有条目
+- **AI 功能**（需自备 AI API Key）：「寻找下一颗星」个性化推荐（按类型过滤、排除已看过）、AI 评分建议、AI 用户画像（仅供娱乐）
+- **我的页**：观影热力图（点击格子看具体日期）、最爱 / 最讨厌榜单、分类最近记录、AI 用户画像
+- **数据备份**：所有密钥可加密导出 / 导入，支持 WebDAV（坚果云）同步
+- **主题**：日间米白星辰金 / 夜间夜空深蓝星光金，自动跟随系统，也可手动切换
+
+## 技术栈
+
+- Next.js 16（App Router，全栈）+ React 19 + TypeScript + Tailwind CSS
+- 数据全部由本地 Node 后端中转（Key 不出服务器，无跨域问题，带多级缓存）
+
+## 快速开始
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+打开 http://localhost:3000。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 首次配置
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **NeoDB 连接（核心）**：打开「我的」页 → 点「一键创建应用并连接 NeoDB」→ 登录授权，即可读写书架（推荐）；或按需在设置页手动填写应用凭据。
+2. **TMDB Key（推荐）**：在 [TMDB](https://www.themoviedb.org/settings/api) 免费申请，填入设置页；配置后电影 / 剧集栏目显示 TMDB 各榜单。API Key (v3) 或 API Read Access Token (v4) 均可。
+3. **可选**：OMDb Key（IMDb 评分）、AI API Key（OpenAI / DeepSeek / Gemini / 智谱等，支持预设与模型刷新）、微信读书 Key（书籍推荐）。
 
-## Learn More
+所有密钥保存在本地 `data/settings.json`（已 gitignore），不会上传。
 
-To learn more about Next.js, take a look at the following resources:
+## 数据来源
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| 栏目 | 来源 |
+| --- | --- |
+| 电影 / 剧集 | TMDB（热门 / 流行 / 高分 / 今日 / 上映 / 热映 / 在播）+ NeoDB |
+| 动漫 | Bangumi（趋势 / 每日放送 / 总榜） |
+| 书籍 | NeoDB + 微信读书 |
+| 游戏 | Steam（免费游玩 / 热卖）+ NeoDB |
+| 音乐 / 播客 | Apple iTunes 榜单 + NeoDB |
+| 用户数据 | NeoDB API（书架、评分、评论） |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## AI 功能说明
 
-## Deploy on Vercel
+- AI 调用走你自己的 API Key（OpenAI 兼容接口），数据只发送给该服务商
+- 推荐会排除你已看过的作品（按条目 ID + 标题变体双重过滤）
+- 用户画像是娱乐性质的分析，不代表真实结论
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 数据备份（WebDAV）
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+设置页「⑧ 数据备份」：用密码（AES-GCM 加密）导出 / 导入全部密钥配置，或同步到自己的 WebDAV（坚果云等）。备份密码只保存在本机浏览器，不会上传。
+
+## 常见问题
+
+- **页面首次打开慢**：首次需并行请求多个数据源（取决于网络），之后有缓存，秒开
+- **TMDB 提示暂时无法访问**：TMDB 在国内网络不稳定，会自动回退 NeoDB，可稍后刷新
+- **端口被占用**：检查 3000 端口是否有残留进程，结束后再启动
+
+## 打包与部署
+
+- **本地使用**：`npm run build && npm run start`
+- **桌面应用（Electron）**：见下方「构建桌面版」
+- **分享给朋友**：可把 Electron 安装包发给朋友，或部署到一台小服务器（现状代码无需改动）
+
+### 构建桌面版（Electron）
+
+```bash
+npm install
+npm run build:electron
+npx electron-builder --win
+```
+
+产物在 `dist/`：`藏星 Setup.exe`（安装版）与 `藏星.exe`（绿色版）。
+
+## 隐私说明
+
+- 所有 API Key、NeoDB 令牌只保存在本机（`data/` 目录与浏览器本地存储）
+- 应用本身不上传任何数据；AI 推荐 / 画像会把你的已标记作品列表发送给你配置的 AI 服务商
+- 本项目为个人工具，非商业用途
+
+## 路线图
+
+- [ ] 微信读书扫码登录
+- [ ] 更多游戏榜单（Steam Web API 在线人数榜）
+- [ ] 朋友动态 / 多账号切换
+- [ ] PWA / Android
+
+## License
+
+本项目由 **noctisvex** 设计，AI 助手（Codex）辅助开发。
+
+开源仅供**个人使用与交流**，禁止商业用途。采用 MIT License —— 详见 [LICENSE](./LICENSE)。
