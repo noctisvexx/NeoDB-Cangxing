@@ -83,6 +83,35 @@ const AI_PRESETS = [
   },
 ];
 
+function Switch({
+  checked,
+  onChange,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`relative h-6 w-11 shrink-0 rounded-full transition ${
+        checked ? "bg-teal-500" : "bg-zinc-700"
+      } ${disabled ? "opacity-50" : ""}`}
+    >
+      <span
+        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+          checked ? "left-[22px]" : "left-0.5"
+        }`}
+      />
+    </button>
+  );
+}
+
 export default function SettingsPage() {
   const [status, setStatus] = useState<SettingsStatus | null>(null);
   const [tmdbKey, setTmdbKey] = useState("");
@@ -101,6 +130,13 @@ export default function SettingsPage() {
   const [webdavPass, setWebdavPass] = useState("");
   const [backupMsg, setBackupMsg] = useState<string | null>(null);
   const [backupError, setBackupError] = useState<string | null>(null);
+  const [sysConfig, setSysConfig] = useState<{
+    lanMode: boolean;
+    autoLaunch: boolean;
+    port: number;
+    lanUrls: string[];
+  } | null>(null);
+  const [sysBusy, setSysBusy] = useState(false);
   const [overridesList, setOverridesList] = useState<
     { orig: string; fixed: string }[]
   >([]);
@@ -140,6 +176,10 @@ export default function SettingsPage() {
         }
       })
       .catch(() => setStatus(null));
+    fetch("/api/system/config")
+      .then((r) => r.json())
+      .then(setSysConfig)
+      .catch(() => {});
     try {
       const saved = localStorage.getItem("shibei-backup-pass");
       if (saved) setBackupPassword(saved);
@@ -373,7 +413,7 @@ export default function SettingsPage() {
       );
       const a = document.createElement("a");
       a.href = URL.createObjectURL(new Blob([blob], { type: "text/plain" }));
-      a.download = "shibei-backup.txt";
+      a.download = "cangxing-backup.txt";
       a.click();
       URL.revokeObjectURL(a.href);
       setBackupMsg("备份已导出（用备份密码加密，请妥善保管密码）");
@@ -446,6 +486,34 @@ export default function SettingsPage() {
     }
   }
 
+  async function updateSysConfig(patch: {
+    lanMode?: boolean;
+    autoLaunch?: boolean;
+  }) {
+    setSysBusy(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const res = await fetch("/api/system/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "保存失败");
+      setSysConfig(data);
+      setMessage(
+        patch.lanMode !== undefined
+          ? "局域网设置已保存，服务正在自动重启（窗口稍后会刷新）"
+          : "开机自启设置已保存",
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "局域网设置保存失败");
+    } finally {
+      setSysBusy(false);
+    }
+  }
+
   const activePreset = AI_PRESETS.find(
     (p) => p.base === (aiBaseUrl || status?.aiBaseUrl),
   );
@@ -506,7 +574,7 @@ export default function SettingsPage() {
           <div className="mt-3">
             <p className="mb-3 text-xs text-zinc-500">
               在 NeoDB 开发者页「新增应用」后（Redirect URI 填
-              http://localhost:3000/api/auth/callback），把两项凭据粘贴到这里。
+              http://localhost:3210/api/auth/callback），把两项凭据粘贴到这里。
             </p>
         <label className="mb-2 block text-sm">
           <span className="mb-1 block text-zinc-400">Client ID</span>
@@ -590,7 +658,7 @@ export default function SettingsPage() {
           </a>{" "}
           申请后，API Key (v3) 或 API Read Access Token（v4）两种都可以填，
           应用会自动识别。表单建议：类型选 Website，名称随便写（如
-          Discovery Sea），应用 URL 填 http://localhost:3000（不会验证），
+              Discovery Sea），应用 URL 填 http://localhost:3210（不会验证），
           用途说明写"个人本地使用的书影音发现工具"。申请通常即时通过。
           {status && (
             <span className="mt-1 block">
@@ -1017,13 +1085,13 @@ export default function SettingsPage() {
               type="button"
               onClick={() => {
                 setWebdavUrl(
-                  "https://dav.jianguoyun.com/dav/cangxing/shibei-backup.txt",
+                  "https://dav.jianguoyun.com/dav/cangxing/cangxing-backup.txt",
                 );
                 markDirty("webdavUrl");
               }}
               className="text-xs text-teal-300 hover:underline"
             >
-              一键填入坚果云地址（dav.jianguoyun.com/dav/cangxing/shibei-backup.txt）
+              一键填入坚果云地址（dav.jianguoyun.com/dav/cangxing/cangxing-backup.txt）
             </button>
           </div>
           <input
@@ -1105,7 +1173,71 @@ export default function SettingsPage() {
         )}
       </div>
       <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
-        <h2 className="mb-2 font-medium text-zinc-100">⑨ 标题修正</h2>
+        <h2 className="mb-2 font-medium text-zinc-100">
+          ⑨ 局域网访问与开机自启
+        </h2>
+        <p className="mb-4 text-xs text-zinc-500">
+          开启局域网访问后，同一 Wi-Fi / 局域网内的手机、平板等设备可用{" "}
+          <code className="text-teal-300">
+            http://本机IP:{sysConfig?.port ?? 3210}
+          </code>{" "}
+          访问本应用；开启开机自启后，电脑启动时会自动运行本程序，方便随时用其他设备访问。
+        </p>
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950/40 px-4 py-3">
+          <div>
+            <p className="text-sm text-zinc-200">开机自启</p>
+            <p className="text-xs text-zinc-500">随电脑启动自动运行藏星</p>
+          </div>
+          <Switch
+            checked={sysConfig?.autoLaunch ?? false}
+            disabled={sysBusy}
+            onChange={(v) => updateSysConfig({ autoLaunch: v })}
+          />
+        </div>
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950/40 px-4 py-3">
+          <div>
+            <p className="text-sm text-zinc-200">局域网访问</p>
+            <p className="text-xs text-zinc-500">
+              允许同一局域网内的其他设备访问本机服务
+            </p>
+          </div>
+          <Switch
+            checked={sysConfig?.lanMode ?? false}
+            disabled={sysBusy}
+            onChange={(v) => updateSysConfig({ lanMode: v })}
+          />
+        </div>
+        {sysConfig?.lanMode && (
+          <div className="mb-3 rounded-xl border border-teal-500/20 bg-teal-500/5 px-4 py-3">
+            <p className="mb-1 text-xs text-zinc-400">局域网访问地址：</p>
+            <div className="flex flex-wrap gap-2">
+              {(sysConfig.lanUrls.length > 0
+                ? sysConfig.lanUrls
+                : [`http://本机IP:${sysConfig.port}`]
+              ).map((url) => (
+                <a
+                  key={url}
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-md bg-zinc-800 px-2.5 py-1 font-mono text-xs text-teal-300 hover:bg-zinc-700"
+                >
+                  {url}
+                </a>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-zinc-500">
+              手机无法访问时，请检查 Windows 防火墙是否放行藏星（专用网络）；
+              本应用没有登录密码，请仅在可信局域网内开启。
+            </p>
+          </div>
+        )}
+        <p className="text-xs text-zinc-500">
+          说明：NeoDB 连接（授权登录）请在本机完成；局域网设备默认可以浏览与检索，不需要登录。
+        </p>
+      </div>
+      <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
+        <h2 className="mb-2 font-medium text-zinc-100">⑩ 标题修正</h2>
         <p className="mb-3 text-xs text-zinc-500">
           某些作品的官方译名与 NeoDB 显示不一致时（如《巅峰对决》显示为《激烈竞争》），
           可在此把原名修正为正确译名，首页和详情页都会生效。

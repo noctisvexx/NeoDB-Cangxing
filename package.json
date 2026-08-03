@@ -1,6 +1,6 @@
 {
   "name": "neodb-cangxing",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "藏星 · NeoDB 增强型书影音发现工具",
   "author": "noctisvex",
   "private": true,
@@ -40,16 +40,14 @@
     },
     "files": [
       "electron/**",
-      ".next/standalone/**",
-      ".next/static/**",
-      "public/**",
-      "app/icon.svg",
       "package.json",
-      "!data/**",
-      "!.env*"
+      "!node_modules/**"
     ],
-    "asarUnpack": [
-      ".next/standalone/**"
+    "extraResources": [
+      {
+        "from": ".next/standalone",
+        "to": "standalone"
+      }
     ],
     "win": {
       "target": [

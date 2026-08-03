@@ -23,6 +23,7 @@
 
 # electron-builder 输出
 /dist
+/dist-release
 
 # misc
 .DS_Store

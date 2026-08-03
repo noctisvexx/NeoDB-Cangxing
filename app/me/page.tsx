@@ -66,7 +66,7 @@ function SetupGuide({
                     设置页
                   </Link>{" "}
                   手动填写应用凭据（需先在 NeoDB 开发者页新增应用，Redirect
-                  URI 填 http://localhost:3000/api/auth/callback）。
+                   URI 填 http://localhost:3210/api/auth/callback）。
                 </p>
               </details>
             </div>
