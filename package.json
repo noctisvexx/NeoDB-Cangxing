@@ -1,6 +1,6 @@
 {
   "name": "neodb-cangxing",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "藏星 · NeoDB 增强型书影音发现工具",
   "author": "noctisvex",
   "private": true,
@@ -52,6 +52,10 @@
       {
         "from": ".next/standalone",
         "to": "standalone"
+      },
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
       }
     ],
     "win": {

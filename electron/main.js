@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell } = require("electron");
+const { app, BrowserWindow, shell, Tray, Menu, nativeImage } = require("electron");
 const { spawn, execFile } = require("child_process");
 const path = require("path");
 const http = require("http");
@@ -8,6 +8,7 @@ const PORT = 3210;
 let serverChild = null;
 let windowOpened = false;
 let mainWindow = null;
+let tray = null;
 let configTimer = null;
 let authTimer = null;
 
@@ -241,7 +242,58 @@ function createWindow(url = `http://127.0.0.1:${PORT}`) {
   mainWindow.webContents.on("will-redirect", (event, url) => {
     openExternalNavigation(event, url);
   });
+  // 点右上角 × 时只隐藏到托盘，程序继续在后台运行；真正退出走托盘菜单
+  mainWindow.on("close", (event) => {
+    if (!app.isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
+  });
   mainWindow.loadURL(url);
+}
+
+function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function trayIconImage() {
+  // 打包后图标在 resources/icon.png（见 package.json extraResources）
+  const file = app.isPackaged
+    ? path.join(process.resourcesPath, "icon.png")
+    : path.join(__dirname, "..", "build", "icon.png");
+  try {
+    if (fs.existsSync(file)) {
+      const img = nativeImage.createFromPath(file);
+      if (!img.isEmpty()) return img;
+    }
+  } catch {
+    // 忽略
+  }
+  return nativeImage.createEmpty();
+}
+
+function createTray() {
+  tray = new Tray(trayIconImage());
+  tray.setToolTip("藏星 · CANGXING");
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: "打开藏星", click: showMainWindow },
+      { type: "separator" },
+      {
+        label: "退出",
+        click: () => {
+          app.isQuitting = true;
+          if (serverChild) serverChild.kill();
+          app.quit();
+        },
+      },
+    ]),
+  );
+  tray.on("click", showMainWindow);
+  tray.on("double-click", showMainWindow);
 }
 
 function waitForServer(retries = 45, reload = false) {
@@ -266,22 +318,31 @@ function waitForServer(retries = 45, reload = false) {
     });
 }
 
-app.whenReady().then(() => {
-  loadConfig();
-  startServer();
-  waitForServer(45, false);
-  if (configExists) {
-    applyAutoLaunch(appConfig.autoLaunch);
-    autoLaunchApplied = appConfig.autoLaunch;
-    lanModeApplied = appConfig.lanMode;
-  }
-  // 始终监听配置目录，首次在设置页开启开关时也能生效
-  watchConfig();
-  watchAuthFile();
-});
-
-app.on("window-all-closed", () => {
-  app.isQuitting = true;
-  if (serverChild) serverChild.kill();
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
   app.quit();
-});
+} else {
+  // 后台运行期间再次启动程序时，聚焦已有窗口而不是再开一个实例（避免端口冲突）
+  app.on("second-instance", () => showMainWindow());
+
+  app.whenReady().then(() => {
+    loadConfig();
+    startServer();
+    waitForServer(45, false);
+    if (configExists) {
+      applyAutoLaunch(appConfig.autoLaunch);
+      autoLaunchApplied = appConfig.autoLaunch;
+      lanModeApplied = appConfig.lanMode;
+    }
+    // 始终监听配置目录，首次在设置页开启开关时也能生效
+    watchConfig();
+    watchAuthFile();
+    createTray();
+  });
+
+  app.on("window-all-closed", () => {
+    app.isQuitting = true;
+    if (serverChild) serverChild.kill();
+    app.quit();
+  });
+}
