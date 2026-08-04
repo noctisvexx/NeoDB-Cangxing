@@ -17,12 +17,34 @@ interface UpdateInfo {
 
 const CHECK_INTERVAL = 6 * 60 * 60 * 1000; // 6 小时
 const IGNORE_KEY = "cangxing-ignored-version";
+const AUTO_CHECK_KEY = "cangxing-auto-check";
+
+function autoCheckEnabled(): boolean {
+  try {
+    return localStorage.getItem(AUTO_CHECK_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
 
 export default function UpdateChecker() {
+  const [isElectron, setIsElectron] = useState(false);
   const [visible, setVisible] = useState(false);
   const [info, setInfo] = useState<UpdateInfo | null>(null);
 
+  useEffect(() => {
+    // 延迟到 effect 外再写入状态，避免级联渲染
+    const t = setTimeout(() => {
+      setIsElectron(
+        typeof navigator !== "undefined" &&
+          navigator.userAgent.includes("Electron"),
+      );
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
+
   const check = useCallback(async () => {
+    if (!isElectron || !autoCheckEnabled()) return;
     try {
       const res = await fetch("/api/update", { cache: "no-store" });
       const data: UpdateInfo = await res.json();
@@ -41,13 +63,17 @@ export default function UpdateChecker() {
     } catch {
       // 网络异常时静默，不打扰用户
     }
-  }, []);
+  }, [isElectron]);
 
   useEffect(() => {
-    void check();
+    if (!isElectron) return;
+    const initial = setTimeout(() => void check(), 0);
     const timer = setInterval(() => void check(), CHECK_INTERVAL);
-    return () => clearInterval(timer);
-  }, [check]);
+    return () => {
+      clearTimeout(initial);
+      clearInterval(timer);
+    };
+  }, [check, isElectron]);
 
   const ignore = () => {
     if (info?.latest) {
@@ -60,7 +86,12 @@ export default function UpdateChecker() {
     setVisible(false);
   };
 
-  if (!visible || !info?.updateAvailable || !info.release?.url) {
+  if (
+    !isElectron ||
+    !visible ||
+    !info?.updateAvailable ||
+    !info.release?.url
+  ) {
     return null;
   }
 

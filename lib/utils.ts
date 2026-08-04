@@ -205,21 +205,6 @@ export function compactItem(item: NeoDBItem): NeoDBItem {
   };
 }
 
-/** 应用用户自定义的标题修正（key 可为条目 uuid 或规范化后的原名） */
-export function applyTitleOverrides(
-  item: NeoDBItem,
-  overrides?: Record<string, string> | null,
-): NeoDBItem {
-  if (!overrides) return item;
-  const byUuid = item.uuid ? overrides[item.uuid] : undefined;
-  const byTitle = overrides[normalizeTitle(item.display_title ?? "")];
-  const corrected = byUuid || byTitle;
-  if (corrected) {
-    item.display_title = corrected;
-  }
-  return item;
-}
-
 /** 按角色取人员：优先条目字段，字段为空时从 credits 兜底 */
 export function pickByRole(
   item: NeoDBItem,

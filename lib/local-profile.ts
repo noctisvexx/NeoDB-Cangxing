@@ -1,4 +1,4 @@
-// 本地档案：昵称与头像（头像以 data URL 内嵌保存，跟随 WebDAV 一起加密备份）
+// 本地档案：昵称与头像（头像以 data URL 内嵌保存，跟随本地加密备份一起导出）
 import { promises as fs } from "node:fs";
 import path from "node:path";
 

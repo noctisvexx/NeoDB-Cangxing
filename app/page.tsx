@@ -4,7 +4,7 @@ import StarTrail from "@/components/StarTrail";
 import SourceSection, {
   type SourceOption,
 } from "@/components/SourceSection";
-import { cached } from "@/lib/cache";
+import { getCachedByKey } from "@/lib/item-cache";
 import { aiApiKey, hasTmdb, wereadApiKey } from "@/lib/config";
 import { loadSettings } from "@/lib/local-settings";
 import {
@@ -43,7 +43,7 @@ import {
   wereadBookToCard,
 } from "@/lib/weread";
 import type { NeoDBItem } from "@/lib/types";
-import { applyTitleOverrides, compactItem } from "@/lib/utils";
+import { compactItem } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -85,7 +85,10 @@ async function tmdbTrendingCards(
 }
 
 export default async function HomePage() {
-  const data = await cached("home-data", 20 * 60_000, async () => {
+  const { value: data } = await getCachedByKey(
+    "home:data",
+    20 * 60_000,
+    async () => {
     const [neodbMovies, neodbTvs, books, games, neodbMusic, neodbPodcasts] =
       await Promise.all([
         getTrending("movie", 24).catch(() => []),
@@ -270,12 +273,6 @@ export default async function HomePage() {
     const compactMusic = neodbMusic.map(compactItem);
     const compactPodcasts = neodbPodcasts.map(compactItem);
 
-    // 用户自定义译名修正
-    const localSettings = await loadSettings();
-    const overrides = localSettings.titleOverrides ?? {};
-    const ovr = (list: NeoDBItem[]) =>
-      list.map((i) => applyTitleOverrides(i, overrides));
-
     const sections: Record<string, SourceOption[]> = {
       movie: [
         {
@@ -349,17 +346,9 @@ export default async function HomePage() {
       ],
     };
 
-    for (const key of Object.keys(sections)) {
-      for (const opt of sections[key]) {
-        opt.items = ovr(opt.items);
-        if (opt.tabs) {
-          for (const t of opt.tabs) t.items = ovr(t.items);
-        }
-      }
-    }
-
-    return { tmdbConfigured, tmdbError, animeNote, sections };
-  });
+      return { tmdbConfigured, tmdbError, animeNote, sections };
+    },
+  );
 
   const { tmdbConfigured, tmdbError, animeNote, sections } = data;
   // AI 配置不缓存，保证填完 Key 刷新立即生效

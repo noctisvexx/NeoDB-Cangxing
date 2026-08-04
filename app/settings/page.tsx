@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import ConnectNeoDB from "@/components/ConnectNeoDB";
-import { normalizeTitle } from "@/lib/utils";
 
 interface SettingsStatus {
   tmdbApiKey?: string;
@@ -32,10 +30,6 @@ type DirtyFields = {
   aiModel?: boolean;
   weread?: boolean;
   order?: boolean;
-  webdavUrl?: boolean;
-  webdavUser?: boolean;
-  webdavPass?: boolean;
-  titleOverrides?: boolean;
   clientId?: boolean;
   clientSecret?: boolean;
 };
@@ -125,9 +119,6 @@ export default function SettingsPage() {
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
   const [customModel, setCustomModel] = useState(false);
   const [backupPassword, setBackupPassword] = useState("");
-  const [webdavUrl, setWebdavUrl] = useState("");
-  const [webdavUser, setWebdavUser] = useState("");
-  const [webdavPass, setWebdavPass] = useState("");
   const [backupMsg, setBackupMsg] = useState<string | null>(null);
   const [backupError, setBackupError] = useState<string | null>(null);
   const [bridgeBusy, setBridgeBusy] = useState<
@@ -135,6 +126,17 @@ export default function SettingsPage() {
   >(null);
   const [bridgeMsg, setBridgeMsg] = useState<string | null>(null);
   const [bridgeError, setBridgeError] = useState<string | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<{
+    current?: string;
+    latest?: string;
+    updateAvailable?: boolean;
+    release?: { name?: string; url?: string };
+    error?: string | null;
+    checkedAt?: number;
+  } | null>(null);
+  const [updateBusy, setUpdateBusy] = useState(false);
+  const [autoCheck, setAutoCheck] = useState(true);
+  const [ignoredVersion, setIgnoredVersion] = useState<string | null>(null);
   const [sysConfig, setSysConfig] = useState<{
     lanMode: boolean;
     autoLaunch: boolean;
@@ -142,11 +144,7 @@ export default function SettingsPage() {
     lanUrls: string[];
   } | null>(null);
   const [sysBusy, setSysBusy] = useState(false);
-  const [overridesList, setOverridesList] = useState<
-    { orig: string; fixed: string }[]
-  >([]);
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
+  const [isElectron, setIsElectron] = useState(false);
   const [dirty, setDirty] = useState<DirtyFields>({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -163,19 +161,6 @@ export default function SettingsPage() {
         setAiBaseUrl(data.aiBaseUrl ?? "");
         setAiModel(data.aiModel ?? "");
         setWereadKey(data.wereadApiKey ?? "");
-        setWebdavUrl(data.webdavUrl ?? "");
-        setWebdavUser(data.webdavUser ?? "");
-        setWebdavPass(data.webdavPass ?? "");
-        setClientId(data.neoDbClientId ?? "");
-        setClientSecret(data.neoDbClientSecret ?? "");
-        if (data.titleOverrides && typeof data.titleOverrides === "object") {
-          setOverridesList(
-            Object.entries(data.titleOverrides).map(([orig, fixed]) => ({
-              orig,
-              fixed: String(fixed),
-            })),
-          );
-        }
         if (Array.isArray(data.sectionOrder) && data.sectionOrder.length > 0) {
           setOrderList(data.sectionOrder);
         }
@@ -191,6 +176,32 @@ export default function SettingsPage() {
     } catch {
       // 忽略
     }
+    const isElectronApp =
+      typeof navigator !== "undefined" &&
+      navigator.userAgent.includes("Electron");
+    // 延迟到 effect 外再写入状态，避免级联渲染
+    const t = setTimeout(() => setIsElectron(isElectronApp), 0);
+    let cancelled = false;
+    const cleanup = () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+    // 更新检测仅对桌面版（Electron）有意义，网页版不检查
+    if (isElectronApp) {
+      try {
+        setAutoCheck(localStorage.getItem("cangxing-auto-check") !== "0");
+        setIgnoredVersion(localStorage.getItem("cangxing-ignored-version"));
+      } catch {
+        // 忽略
+      }
+      fetch("/api/update", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((data) => {
+          if (!cancelled) setUpdateInfo(data);
+        })
+        .catch(() => {});
+    }
+    return cleanup;
   }, []);
 
   function markDirty(field: keyof DirtyFields) {
@@ -229,16 +240,7 @@ export default function SettingsPage() {
           "AI Key 无效：接口拒绝了该 Key（401）。请检查 Key 是否完整，或点选对应的服务商预设后重试",
         );
       } else {
-        if (
-          (data.neoDbClientIdSet && !data.neoDbClientSecretSet) ||
-          (!data.neoDbClientIdSet && data.neoDbClientSecretSet)
-        ) {
-          setError(
-            "注意：Client ID 与 Client Secret 需要成对填写才能完成 NeoDB 连接",
-          );
-        } else {
-          setError(null);
-        }
+        setError(null);
       }
       setStatus((prev) => ({
         ...(prev ?? {
@@ -478,52 +480,6 @@ export default function SettingsPage() {
     }
   }
 
-  async function webdavUpload() {
-    setBackupMsg(null);
-    setBackupError(null);
-    if (!backupPassword) {
-      setBackupError("请先填写备份密码");
-      return;
-    }
-    try {
-      const payload = await currentPayload();
-      const blob = await encryptText(
-        JSON.stringify(payload),
-        backupPassword,
-      );
-      const res = await fetch("/api/settings/webdav", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "put", blob }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "上传失败");
-      setBackupMsg("已加密上传到 WebDAV");
-    } catch (e) {
-      setBackupError(e instanceof Error ? e.message : "上传失败");
-    }
-  }
-
-  async function webdavDownload() {
-    setBackupMsg(null);
-    setBackupError(null);
-    if (!backupPassword) {
-      setBackupError("请先填写备份密码");
-      return;
-    }
-    try {
-      const res = await fetch("/api/settings/webdav");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "下载失败");
-      const json = await decryptText(data.blob, backupPassword);
-      await applyPayload(JSON.parse(json));
-    } catch (e) {
-      setBackupError(
-        e instanceof Error ? e.message : "下载/解密失败（密码可能不对）",
-      );
-    }
-  }
-
   async function runBridge(kind: "import" | "export") {
     setBridgeBusy(kind);
     setBridgeMsg(null);
@@ -593,6 +549,53 @@ export default function SettingsPage() {
     }
   }
 
+  async function checkUpdate(force: boolean) {
+    setUpdateBusy(true);
+    try {
+      const res = await fetch(
+        `/api/update${force ? "?force=1" : ""}`,
+        { cache: "no-store" },
+      );
+      const data = await res.json();
+      setUpdateInfo(data);
+    } catch (e) {
+      setUpdateInfo({
+        updateAvailable: false,
+        error: e instanceof Error ? e.message : "检查更新失败",
+      });
+    } finally {
+      setUpdateBusy(false);
+    }
+  }
+
+  function toggleAutoCheck(v: boolean) {
+    setAutoCheck(v);
+    try {
+      localStorage.setItem("cangxing-auto-check", v ? "1" : "0");
+    } catch {
+      // 忽略
+    }
+  }
+
+  function ignoreThisVersion() {
+    if (!updateInfo?.latest) return;
+    try {
+      localStorage.setItem("cangxing-ignored-version", updateInfo.latest);
+    } catch {
+      // 忽略
+    }
+    setIgnoredVersion(updateInfo.latest);
+  }
+
+  function resetIgnored() {
+    try {
+      localStorage.removeItem("cangxing-ignored-version");
+    } catch {
+      // 忽略
+    }
+    setIgnoredVersion(null);
+  }
+
   async function updateSysConfig(patch: {
     lanMode?: boolean;
     autoLaunch?: boolean;
@@ -645,7 +648,7 @@ export default function SettingsPage() {
             statusRow(
               status.neoDbConnected,
               "已连接（OAuth 一年期令牌）",
-              "未连接（需先完成下面 ② 的凭据填写）",
+              "未连接（去「我的」页一键授权即可）",
             )}
         </p>
         <a
@@ -666,100 +669,7 @@ export default function SettingsPage() {
 
       <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
         <h2 className="mb-2 font-medium text-zinc-100">
-          ② NeoDB 应用
-        </h2>
-        {status?.neoDbClientConfigured ? (
-          <p className="mb-3 rounded-lg bg-emerald-500/10 px-3 py-2 text-sm text-emerald-400">
-            ✓ 已配置：日常只需去「我的」页点「连接到 NeoDB」完成账号授权，无需修改这里。
-          </p>
-        ) : (
-          <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
-            <p className="mb-2 text-sm text-zinc-300">
-              无需手动创建应用，点下面按钮自动创建并跳转授权：
-            </p>
-            <ConnectNeoDB />
-          </div>
-        )}
-        <details className="text-sm">
-          <summary className="cursor-pointer text-zinc-400 hover:text-zinc-200">
-            {status?.neoDbClientConfigured
-              ? "高级：修改应用凭据"
-              : "高级：手动填写凭据"}
-          </summary>
-          <div className="mt-3">
-            <p className="mb-3 text-xs text-zinc-500">
-              在 NeoDB 开发者页「新增应用」后（Redirect URI 填
-              http://localhost:3210/api/auth/callback），把两项凭据粘贴到这里。
-            </p>
-        <label className="mb-2 block text-sm">
-          <span className="mb-1 block text-zinc-400">Client ID</span>
-          <input
-            value={clientId}
-            onChange={(e) => {
-              setClientId(e.target.value);
-              markDirty("clientId");
-            }}
-            placeholder={
-              status?.neoDbClientIdSet
-                ? "已填写，留空保持不变"
-                : "uT9mDhCHc..."
-            }
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-amber-500 focus:outline-none"
-          />
-        </label>
-        <label className="mb-3 block text-sm">
-          <span className="mb-1 flex items-center justify-between text-zinc-400">
-            Client Secret
-            <button
-              type="button"
-              onClick={() => toggleKey("secret")}
-              className="text-xs text-zinc-500 hover:text-zinc-300"
-            >
-              {showKeys.secret ? "🙈 隐藏" : "👁 显示"}
-            </button>
-          </span>
-          <input
-            value={clientSecret}
-            onChange={(e) => {
-              setClientSecret(e.target.value);
-              markDirty("clientSecret");
-            }}
-            placeholder={
-              status?.neoDbClientSecretSet
-                ? "已填写，留空保持不变"
-                : "BMYR8144..."
-            }
-            type={showKeys.secret ? "text" : "password"}
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-amber-500 focus:outline-none"
-          />
-        </label>
-        <button
-          type="button"
-          onClick={() =>
-            saveFields(
-              {
-                ...(dirty.clientId
-                  ? { neoDbClientId: clientId }
-                  : {}),
-                ...(dirty.clientSecret
-                  ? { neoDbClientSecret: clientSecret }
-                  : {}),
-              },
-              ["clientId", "clientSecret"],
-            )
-          }
-          disabled={busy}
-          className="mt-3 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-zinc-950 transition hover:bg-amber-400 disabled:opacity-50"
-        >
-          保存 NeoDB 凭据
-        </button>
-          </div>
-        </details>
-      </div>
-
-      <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
-        <h2 className="mb-2 font-medium text-zinc-100">
-          ③ TMDB API Key
+          ② TMDB API Key
         </h2>
         <p className="mb-3 text-xs text-zinc-500">
           在{" "}
@@ -827,7 +737,7 @@ export default function SettingsPage() {
 
       <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
         <h2 className="mb-2 font-medium text-zinc-100">
-          ④ OMDb API Key（IMDb 评分）
+          ③ OMDb API Key（IMDb 评分）
         </h2>
         <p className="mb-3 text-xs text-zinc-500">
           IMDb 官方没有开放 API，用 OMDb 代理显示 IMDb 评分。在{" "}
@@ -890,7 +800,7 @@ export default function SettingsPage() {
 
       <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
         <h2 className="mb-2 font-medium text-zinc-100">
-          ⑤ AI API Key（AI 推荐）
+          ④ AI API Key（AI 推荐）
         </h2>
         <p className="mb-3 text-xs text-zinc-500">
           填入你自己的 AI 接口 Key（OpenAI、DeepSeek 或任何 OpenAI 兼容接口），
@@ -1035,7 +945,7 @@ export default function SettingsPage() {
 
       <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
         <h2 className="mb-2 font-medium text-zinc-100">
-          ⑥ 微信读书 API Key（书籍推荐）
+          ⑤ 微信读书 API Key（书籍推荐）
         </h2>
         <p className="mb-3 text-xs text-zinc-500">
           填入 wrk- 开头的微信读书网关 Key 后，首页「热门书籍」会切换为微信读书
@@ -1090,57 +1000,8 @@ export default function SettingsPage() {
       </div>
 
       <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
-        <h2 className="mb-2 font-medium text-zinc-100">⑦ 首页栏目顺序</h2>
-        <p className="mb-3 text-xs text-zinc-500">
-          用上下按钮调整各栏目在首页的显示顺序，保存后立即生效。
-        </p>
-        <ul className="space-y-1.5">
-          {orderList.map((k, i) => (
-            <li
-              key={k}
-              className="flex items-center justify-between rounded-lg border border-white/5 bg-zinc-900/40 px-3 py-2"
-            >
-              <span className="text-sm text-zinc-200">
-                {SECTION_NAMES[k] ?? k}
-              </span>
-              <span className="flex gap-1">
-                <button
-                  type="button"
-                  onClick={() => moveSection(i, -1)}
-                  disabled={i === 0}
-                  className="rounded-md border border-zinc-700 px-2 py-0.5 text-xs text-zinc-300 transition hover:border-amber-400/50 disabled:opacity-30"
-                >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  onClick={() => moveSection(i, 1)}
-                  disabled={i === orderList.length - 1}
-                  className="rounded-md border border-zinc-700 px-2 py-0.5 text-xs text-zinc-300 transition hover:border-amber-400/50 disabled:opacity-30"
-                >
-                  ↓
-                </button>
-              </span>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-3 text-xs text-zinc-500">
-          ⭐ 主题会自动跟随系统：日间为米白星辰金（方案A），夜间为夜空深蓝星光金（方案B），无需手动切换。
-        </p>
-        <button
-          type="button"
-          onClick={() =>
-            saveFields({ sectionOrder: orderList }, ["order"])
-          }
-          disabled={busy}
-          className="mt-3 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-zinc-950 transition hover:bg-amber-400 disabled:opacity-50"
-        >
-          保存栏目顺序
-        </button>
-      </div>
-      <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
         <h2 className="mb-2 font-medium text-zinc-100">
-          ⑦ 本地 ↔ NeoDB 数据桥接
+          ⑥ 本地 ↔ NeoDB 数据桥接
         </h2>
         <p className="mb-3 text-xs text-zinc-500">
           本地标记是给不使用 NeoDB 的朋友准备的：可把自己在 NeoDB 的整个书架导入成本地标记（随备份一起加密同步），也可把本地标记一次性同步回 NeoDB；已连接 NeoDB 时还可以把全部书架数据（想看 / 在看 / 已看 / 弃了，含评分与短评）一键导出为 JSON 文件保存。
@@ -1182,11 +1043,11 @@ export default function SettingsPage() {
       </div>
       <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
         <h2 className="mb-2 font-medium text-zinc-100">
-          ⑧ 数据备份（加密导出 / 导入 / WebDAV 同步）
+          ⑦ 数据备份（加密导出 / 导入）
         </h2>
         <p className="mb-3 text-xs text-zinc-500">
           用密码（AES 加密）备份所有 Key 配置、本地档案（头像 / 昵称）与本地标记，
-          可导出文件或同步到自己的 WebDAV（如坚果云）。密码只在本机浏览器里使用，不会上传。
+          可导出文件保存。密码只在本机浏览器里使用，不会上传。
         </p>
         <label className="mb-3 block text-sm">
           <span className="mb-1 flex items-center justify-between text-zinc-400">
@@ -1236,92 +1097,6 @@ export default function SettingsPage() {
             />
           </label>
         </div>
-        <div className="mb-3 grid gap-2 sm:grid-cols-3">
-          <div className="sm:col-span-3">
-            <button
-              type="button"
-              onClick={() => {
-                setWebdavUrl(
-                  "https://dav.jianguoyun.com/dav/cangxing/cangxing-backup.txt",
-                );
-                markDirty("webdavUrl");
-              }}
-              className="text-xs text-teal-300 hover:underline"
-            >
-              一键填入坚果云地址（dav.jianguoyun.com/dav/cangxing/cangxing-backup.txt）
-            </button>
-          </div>
-          <input
-            value={webdavUrl}
-            onChange={(e) => {
-              setWebdavUrl(e.target.value);
-              markDirty("webdavUrl");
-            }}
-            placeholder="WebDAV 地址（指向一个文件，会自动补文件名）"
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-teal-400 focus:outline-none"
-          />
-          <input
-            value={webdavUser}
-            onChange={(e) => {
-              setWebdavUser(e.target.value);
-              markDirty("webdavUser");
-            }}
-            placeholder="WebDAV 用户名"
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-teal-400 focus:outline-none"
-          />
-          <div className="relative">
-            <input
-              value={webdavPass}
-              onChange={(e) => {
-                setWebdavPass(e.target.value);
-                markDirty("webdavPass");
-              }}
-              type={showKeys.webdav ? "text" : "password"}
-              placeholder="WebDAV 密码"
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 pr-10 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-teal-400 focus:outline-none"
-            />
-            <button
-              type="button"
-              onClick={() => toggleKey("webdav")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-500 hover:text-zinc-300"
-            >
-              {showKeys.webdav ? "🙈" : "👁"}
-            </button>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() =>
-              saveFields(
-                {
-                  ...(dirty.webdavUrl ? { webdavUrl } : {}),
-                  ...(dirty.webdavUser ? { webdavUser } : {}),
-                  ...(dirty.webdavPass ? { webdavPass } : {}),
-                },
-                ["webdavUrl", "webdavUser", "webdavPass"],
-              )
-            }
-            disabled={busy}
-            className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 transition hover:border-amber-400/50 disabled:opacity-50"
-          >
-            保存 WebDAV 配置
-          </button>
-          <button
-            type="button"
-            onClick={webdavUpload}
-            className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 transition hover:border-amber-400/50"
-          >
-            加密上传到 WebDAV
-          </button>
-          <button
-            type="button"
-            onClick={webdavDownload}
-            className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 transition hover:border-amber-400/50"
-          >
-            从 WebDAV 下载恢复
-          </button>
-        </div>
         {backupMsg && (
           <p className="mt-3 text-sm text-emerald-400">{backupMsg}</p>
         )}
@@ -1331,7 +1106,7 @@ export default function SettingsPage() {
       </div>
       <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
         <h2 className="mb-2 font-medium text-zinc-100">
-          ⑨ 局域网访问与开机自启
+          ⑧ 局域网访问与开机自启
         </h2>
         <p className="mb-4 text-xs text-zinc-500">
           开启局域网访问后，同一 Wi-Fi / 局域网内的手机、平板等设备可用{" "}
@@ -1393,80 +1168,134 @@ export default function SettingsPage() {
           说明：NeoDB 连接（授权登录）请在本机完成；局域网设备默认可以浏览与检索，不需要登录。
         </p>
       </div>
-      <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
-        <h2 className="mb-2 font-medium text-zinc-100">⑩ 标题修正</h2>
+      {isElectron && (
+        <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
+        <h2 className="mb-2 font-medium text-zinc-100">⑨ 更新检测</h2>
         <p className="mb-3 text-xs text-zinc-500">
-          某些作品的官方译名与 NeoDB 显示不一致时（如《巅峰对决》显示为《激烈竞争》），
-          可在此把原名修正为正确译名，首页和详情页都会生效。
+          藏星会自动检查 GitHub 上的新版本（启动时 + 每 6 小时），发现新版本时顶部显示提示横幅，可一键前往下载。
         </p>
-        <div className="space-y-2">
-          {overridesList.map((row, i) => (
-            <div key={i} className="flex gap-2">
-              <input
-                value={row.orig}
-                onChange={(e) => {
-                  const next = [...overridesList];
-                  next[i] = { ...next[i], orig: e.target.value };
-                  setOverridesList(next);
-                  markDirty("titleOverrides");
-                }}
-                placeholder="原名（当前显示的名称）"
-                className="w-1/2 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-teal-400 focus:outline-none"
-              />
-              <input
-                value={row.fixed}
-                onChange={(e) => {
-                  const next = [...overridesList];
-                  next[i] = { ...next[i], fixed: e.target.value };
-                  setOverridesList(next);
-                  markDirty("titleOverrides");
-                }}
-                placeholder="修正为"
-                className="w-1/2 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-teal-400 focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  setOverridesList((prev) =>
-                    prev.filter((_, idx) => idx !== i),
-                  );
-                  markDirty("titleOverrides");
-                }}
-                className="shrink-0 rounded-lg border border-zinc-700 px-3 text-sm text-zinc-400 hover:border-red-500/50 hover:text-red-300"
-              >
-                删
-              </button>
-            </div>
-          ))}
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950/40 px-4 py-3">
+          <div>
+            <p className="text-sm text-zinc-200">自动检测更新</p>
+            <p className="text-xs text-zinc-500">
+              关闭后只在手动检查时检测
+            </p>
+          </div>
+          <Switch checked={autoCheck} onChange={toggleAutoCheck} />
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
+          <span className="text-zinc-400">
+            当前版本：
+            <span className="font-semibold text-amber-400">
+              v{updateInfo?.current || "…"}
+            </span>
+          </span>
           <button
             type="button"
-            onClick={() => {
-              setOverridesList((prev) => [...prev, { orig: "", fixed: "" }]);
-              markDirty("titleOverrides");
-            }}
-            className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:border-teal-400/50"
-          >
-            添加一行
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const obj: Record<string, string> = {};
-              for (const row of overridesList) {
-                if (row.orig.trim() && row.fixed.trim()) {
-                  obj[normalizeTitle(row.orig.trim())] = row.fixed.trim();
-                }
-              }
-              saveFields({ titleOverrides: obj }, ["titleOverrides"]);
-            }}
-            disabled={busy}
+            onClick={() => void checkUpdate(true)}
+            disabled={updateBusy}
             className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-zinc-950 transition hover:bg-amber-400 disabled:opacity-50"
           >
-            保存标题修正
+            {updateBusy ? "检查中…" : "检查更新"}
           </button>
         </div>
+        {updateInfo && (
+          <div className="rounded-lg bg-zinc-950/40 px-3 py-2.5 text-sm">
+            {updateInfo.updateAvailable ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-amber-400">
+                  发现新版本 v{updateInfo.latest}（当前 v{updateInfo.current}）
+                </span>
+                <a
+                  href={updateInfo.release?.url ?? "#"}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-md bg-amber-500 px-3 py-1 text-xs font-medium text-zinc-950"
+                >
+                  前往下载
+                </a>
+                <button
+                  type="button"
+                  onClick={ignoreThisVersion}
+                  className="text-xs text-zinc-500 hover:text-zinc-300"
+                >
+                  忽略此版本
+                </button>
+              </div>
+            ) : updateInfo.error ? (
+              <p className="text-zinc-500">
+                检查失败：{updateInfo.error}
+                {updateInfo.current ? `（当前版本 v${updateInfo.current}）` : ""}
+              </p>
+            ) : (
+              <p className="text-emerald-400">
+                已是最新版本 v{updateInfo.current}
+                {updateInfo.checkedAt
+                  ? ` · ${new Date(updateInfo.checkedAt).toLocaleString()}`
+                  : ""}
+              </p>
+            )}
+          </div>
+        )}
+        {ignoredVersion && (
+          <button
+            type="button"
+            onClick={resetIgnored}
+            className="mt-3 text-xs text-zinc-500 underline hover:text-amber-300"
+          >
+            恢复对 v{ignoredVersion} 的更新提示
+          </button>
+        )}
+        </div>
+      )}
+      <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
+        <h2 className="mb-2 font-medium text-zinc-100">⑩ 首页栏目顺序</h2>
+        <p className="mb-3 text-xs text-zinc-500">
+          用上下按钮调整各栏目在首页的显示顺序，保存后立即生效。
+        </p>
+        <ul className="space-y-1.5">
+          {orderList.map((k, i) => (
+            <li
+              key={k}
+              className="flex items-center justify-between rounded-lg border border-white/5 bg-zinc-900/40 px-3 py-2"
+            >
+              <span className="text-sm text-zinc-200">
+                {SECTION_NAMES[k] ?? k}
+              </span>
+              <span className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => moveSection(i, -1)}
+                  disabled={i === 0}
+                  className="rounded-md border border-zinc-700 px-2 py-0.5 text-xs text-zinc-300 transition hover:border-amber-400/50 disabled:opacity-30"
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveSection(i, 1)}
+                  disabled={i === orderList.length - 1}
+                  className="rounded-md border border-zinc-700 px-2 py-0.5 text-xs text-zinc-300 transition hover:border-amber-400/50 disabled:opacity-30"
+                >
+                  ↓
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 text-xs text-zinc-500">
+          ⭐ 主题会自动跟随系统：日间为米白星辰金（方案A），夜间为夜空深蓝星光金（方案B），无需手动切换。
+        </p>
+        <button
+          type="button"
+          onClick={() =>
+            saveFields({ sectionOrder: orderList }, ["order"])
+          }
+          disabled={busy}
+          className="mt-3 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-zinc-950 transition hover:bg-amber-400 disabled:opacity-50"
+        >
+          保存栏目顺序
+        </button>
       </div>
       {message && <p className="mt-3 text-sm text-emerald-400">{message}</p>}
       {error && <p className="mt-3 text-sm text-red-400">{error}</p>}

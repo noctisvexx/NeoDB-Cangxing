@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clearCache } from "@/lib/cache";
+import { clearPersistentCache } from "@/lib/item-cache";
 import { neoDbInstance } from "@/lib/config";
 import { loadAuthFile } from "@/lib/neodb-auth";
 import { loadSettings, saveSettings } from "@/lib/local-settings";
@@ -14,9 +15,6 @@ export async function GET() {
     omdbApiKey: settings.omdbApiKey ?? "",
     aiApiKey: settings.aiApiKey ?? "",
     wereadApiKey: settings.wereadApiKey ?? "",
-    webdavUrl: settings.webdavUrl ?? "",
-    webdavUser: settings.webdavUser ?? "",
-    webdavPass: settings.webdavPass ?? "",
     neoDbClientId: settings.neoDbClientId ?? "",
     neoDbClientSecret: settings.neoDbClientSecret ?? "",
     tmdbConfigured: !!settings.tmdbApiKey,
@@ -26,7 +24,6 @@ export async function GET() {
     aiModel: settings.aiModel || "gpt-4o-mini",
     wereadConfigured: !!settings.wereadApiKey,
     sectionOrder: settings.sectionOrder ?? null,
-    titleOverrides: settings.titleOverrides ?? {},
     neoDbClientConfigured:
       !!settings.neoDbClientId && !!settings.neoDbClientSecret,
     neoDbClientIdSet: !!settings.neoDbClientId,
@@ -50,11 +47,7 @@ export async function POST(req: NextRequest) {
     aiBaseUrl,
     aiModel,
     wereadApiKey,
-    webdavUrl,
-    webdavUser,
-    webdavPass,
     sectionOrder,
-    titleOverrides,
     neoDbClientId,
     neoDbClientSecret,
   } = body as Record<string, unknown>;
@@ -65,11 +58,7 @@ export async function POST(req: NextRequest) {
     aiBaseUrl?: string;
     aiModel?: string;
     wereadApiKey?: string;
-    webdavUrl?: string;
-    webdavUser?: string;
-    webdavPass?: string;
     sectionOrder?: string[];
-    titleOverrides?: Record<string, string>;
     neoDbClientId?: string;
     neoDbClientSecret?: string;
   } = {};
@@ -79,13 +68,7 @@ export async function POST(req: NextRequest) {
   if (typeof aiBaseUrl === "string") patch.aiBaseUrl = aiBaseUrl;
   if (typeof aiModel === "string") patch.aiModel = aiModel;
   if (typeof wereadApiKey === "string") patch.wereadApiKey = wereadApiKey;
-  if (typeof webdavUrl === "string") patch.webdavUrl = webdavUrl;
-  if (typeof webdavUser === "string") patch.webdavUser = webdavUser;
-  if (typeof webdavPass === "string") patch.webdavPass = webdavPass;
   if (Array.isArray(sectionOrder)) patch.sectionOrder = sectionOrder;
-  if (titleOverrides && typeof titleOverrides === "object" && !Array.isArray(titleOverrides)) {
-    patch.titleOverrides = titleOverrides as Record<string, string>;
-  }
   if (typeof neoDbClientId === "string") patch.neoDbClientId = neoDbClientId;
   if (typeof neoDbClientSecret === "string")
     patch.neoDbClientSecret = neoDbClientSecret;
@@ -94,6 +77,7 @@ export async function POST(req: NextRequest) {
   // 配置变化后让首页缓存立即失效
   clearCache("home-data");
   clearCache("item-");
+  clearPersistentCache();
   // 保存 OMDb Key 时顺手验证一次，避免无效 Key 静默不显示 IMDb 评分
   let omdbValid: boolean | null = null;
   if (typeof omdbApiKey === "string" && omdbApiKey.trim()) {

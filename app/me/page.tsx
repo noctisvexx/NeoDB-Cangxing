@@ -61,22 +61,6 @@ function SetupGuide({
                 无需手动创建应用，点下面按钮自动完成：
               </p>
               <ConnectNeoDB label="一键创建应用并连接 NeoDB" />
-              <details className="mt-3 text-xs text-zinc-500">
-                <summary className="cursor-pointer hover:text-zinc-300">
-                  高级：手动填写 Client ID / Secret
-                </summary>
-                <p className="mt-2">
-                  也可在{" "}
-                  <Link
-                    href="/settings"
-                    className="text-amber-400 hover:underline"
-                  >
-                    设置页
-                  </Link>{" "}
-                  手动填写应用凭据（需先在 NeoDB 开发者页新增应用，Redirect
-                   URI 填 http://localhost:3210/api/auth/callback）。
-                </p>
-              </details>
             </div>
           )}
           <p className="mt-3 text-sm text-zinc-500">
@@ -240,8 +224,8 @@ async function LocalModePage({
       <div className="mb-4 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
         <h2 className="title-accent mb-2 text-lg font-bold">本地模式</h2>
         <p className="mb-3 text-sm text-zinc-400">
-          标记保存在本机，不依赖 NeoDB；头像与标记可一起在设置页加密备份 / 同步到
-          WebDAV。NeoDB 是可选项：
+          标记保存在本机，不依赖 NeoDB；头像与标记可一起在设置页加密备份导出。
+          NeoDB 是可选项：
         </p>
         {clientIdConfigured ? (
           <a

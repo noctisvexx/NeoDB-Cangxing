@@ -187,25 +187,34 @@ function openExternalNavigation(event, url) {
 
 // NeoDB 授权在系统浏览器完成后，令牌文件变化时自动刷新应用窗口
 function watchAuthFile() {
-  const authDir = path.join(app.getPath("userData"), "data");
+  const authFile = path.join(
+    app.getPath("userData"),
+    "data",
+    "neodb-auth.json",
+  );
+  let lastRaw = "";
   try {
-    fs.mkdirSync(authDir, { recursive: true });
-  } catch {
-    // 忽略
+    lastRaw = fs.readFileSync(authFile, "utf8");
+  } catch (e) {
+    // 文件还不存在，首次授权写入时会被轮询到
   }
-  try {
-    fs.watch(authDir, (_event, filename) => {
-      if (filename && filename !== "neodb-auth.json") return;
+  fs.watchFile(authFile, { interval: 1000 }, () => {
+    let raw = "";
+    try {
+      raw = fs.readFileSync(authFile, "utf8");
+    } catch {
+      // 忽略
+    }
+    if (raw && raw !== lastRaw) {
+      lastRaw = raw;
       clearTimeout(authTimer);
       authTimer = setTimeout(() => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.reload();
         }
       }, 800);
-    });
-  } catch (e) {
-    console.error("监听 NeoDB 令牌失败：", e.message);
-  }
+    }
+  });
 }
 
 function createWindow(url = `http://127.0.0.1:${PORT}`) {

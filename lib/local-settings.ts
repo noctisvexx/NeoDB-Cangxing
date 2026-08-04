@@ -10,10 +10,6 @@ export interface LocalSettings {
   aiModel?: string;
   wereadApiKey?: string;
   sectionOrder?: string[];
-  titleOverrides?: Record<string, string>;
-  webdavUrl?: string;
-  webdavUser?: string;
-  webdavPass?: string;
   neoDbClientId?: string;
   neoDbClientSecret?: string;
 }
@@ -31,7 +27,8 @@ export async function loadSettings(): Promise<LocalSettings> {
     const raw = await fs.readFile(settingsFilePath(), "utf8");
     cached = JSON.parse(raw) as LocalSettings;
   } catch {
-    cached = {};
+    // 读取 / 解析失败时返回空配置但不缓存，避免把一次损坏长期固化为"所有配置丢失"
+    return {};
   }
   return cached ?? {};
 }
@@ -48,9 +45,6 @@ export async function saveSettings(
     "aiBaseUrl",
     "aiModel",
     "wereadApiKey",
-    "webdavUrl",
-    "webdavUser",
-    "webdavPass",
     "neoDbClientId",
     "neoDbClientSecret",
   ] as const) {
@@ -60,14 +54,6 @@ export async function saveSettings(
   next.sectionOrder = Array.isArray(patch.sectionOrder)
     ? patch.sectionOrder.map(String).filter(Boolean)
     : current.sectionOrder;
-  if (patch.titleOverrides !== undefined) {
-    next.titleOverrides =
-      patch.titleOverrides && typeof patch.titleOverrides === "object"
-        ? Object.fromEntries(
-            Object.entries(patch.titleOverrides).filter(([, v]) => !!v),
-          )
-        : current.titleOverrides;
-  }
   const file = settingsFilePath();
   await fs.mkdir(path.dirname(file), { recursive: true });
   await fs.writeFile(file, JSON.stringify(next, null, 2), "utf8");
