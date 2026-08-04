@@ -246,7 +246,7 @@ function createWindow(url = `http://127.0.0.1:${PORT}`) {
 
 function waitForServer(retries = 45, reload = false) {
   http
-    .get(`http://127.0.0.1:${PORT}`, () => {
+    .get(`http://127.0.0.1:${PORT}/api/health`, () => {
       if (reload && mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.reload();
       } else {

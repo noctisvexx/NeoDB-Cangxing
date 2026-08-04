@@ -77,7 +77,7 @@ export default function SourceSection({
                   key={o.label}
                   type="button"
                   onClick={() => switchOption(i)}
-                  className={`rounded-full px-2.5 py-1 transition ${
+                  className={`whitespace-nowrap rounded-full px-2.5 py-1 transition ${
                     i === activeIdx
                       ? "bg-zinc-700 text-white"
                       : "text-zinc-400 hover:text-zinc-200"
@@ -89,13 +89,13 @@ export default function SourceSection({
             </div>
           )}
           {usingTabs ? (
-            <div className="flex gap-1 rounded-full bg-zinc-900 p-1 text-xs">
+            <div className="flex max-w-full gap-1 overflow-x-auto rounded-full bg-zinc-900 p-1 text-xs">
               {active?.tabs?.map((t, i) => (
                 <button
                   key={t.label}
                   type="button"
                   onClick={() => setTabIdx(i)}
-                  className={`rounded-full px-2.5 py-1 transition ${
+                  className={`whitespace-nowrap rounded-full px-2.5 py-1 transition ${
                     i === tabIdx
                       ? "bg-zinc-700 text-white"
                       : "text-zinc-400 hover:text-zinc-200"
@@ -107,13 +107,13 @@ export default function SourceSection({
             </div>
           ) : (
             availableSorts.length > 1 && (
-              <div className="flex gap-1 rounded-full bg-zinc-900 p-1 text-xs">
+              <div className="flex max-w-full gap-1 overflow-x-auto rounded-full bg-zinc-900 p-1 text-xs">
                 {availableSorts.map((s) => (
                   <button
                     key={s.key}
                     type="button"
                     onClick={() => setSort(s.key)}
-                    className={`rounded-full px-2.5 py-1 transition ${
+                    className={`whitespace-nowrap rounded-full px-2.5 py-1 transition ${
                       sort === s.key
                         ? "bg-zinc-700 text-white"
                         : "text-zinc-400 hover:text-zinc-200"

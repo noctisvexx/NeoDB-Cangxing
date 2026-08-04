@@ -34,13 +34,13 @@ export default function RootLayout({
             <Link href="/" className="flex items-baseline gap-2">
               <svg
                 viewBox="0 0 24 24"
-                className="h-9 w-9 self-center"
+                className="h-8 w-8 self-center sm:h-9 sm:w-9"
                 fill="var(--accent)"
                 aria-hidden="true"
               >
                 <path d="M12 2c1.2 5.5 4.3 8.8 10 10-5.7 1.2-8.8 4.5-10 10-1.2-5.5-4.3-8.8-10-10 5.7-1.2 8.8-4.5 10-10Z" />
               </svg>
-              <span className="title-accent text-4xl font-bold tracking-wide">
+              <span className="title-accent text-3xl font-bold tracking-wide sm:text-4xl">
                 藏星
               </span>
               <span className="hidden text-xs text-zinc-500 sm:inline">

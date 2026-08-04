@@ -72,6 +72,22 @@ html {
   color-scheme: light dark;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* 手机小屏：根字号整体缩小（Tailwind 的 rem 单位会随之变小），
+   让页面在手机上呈现"整体缩小"的效果，避免内容被挤成竖排 */
+@media (max-width: 480px) {
+  html {
+    font-size: 14px;
+  }
+  body {
+    overflow-x: hidden;
+  }
+}
+
 body {
   background-color: var(--bg);
   color: var(--text);
