@@ -43,6 +43,9 @@ yarn-error.log*
 /data
 /app-config.json
 
+# WorkBuddy 项目记忆与本地状态
+/.workbuddy
+
 # vercel
 .vercel
 

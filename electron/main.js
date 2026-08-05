@@ -5,8 +5,25 @@ const http = require("http");
 const fs = require("fs");
 
 const PORT = 3210;
+const HEALTH_INTERVAL = 100;
+// 启动闪屏：服务器就绪前先显示窗口，避免用户面对长时间空白
+const SPLASH_URL = `data:text/html;charset=utf-8,${encodeURIComponent(
+  `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><style>
+html,body{margin:0;height:100%}
+body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:#07090d;color:#d4d4d8;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+.star{width:44px;height:44px;fill:#f59e0b;animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.15);opacity:.75}}
+.spin{width:22px;height:22px;border-radius:50%;border:2px solid rgba(245,158,11,.25);border-top-color:#f59e0b;animation:rot .8s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+</style></head><body>
+<svg class="star" viewBox="0 0 24 24"><path d="M12 2c1.2 5.5 4.3 8.8 10 10-5.7 1.2-8.8 4.5-10 10-1.2-5.5-4.3-8.8-10-10 5.7-1.2 8.8-4.5 10-10Z"/></svg>
+<div class="spin"></div>
+<div style="font-size:13px;color:#71717a;letter-spacing:.2em">藏星 正在启动…</div>
+</body></html>`,
+)}`;
 let serverChild = null;
-let windowOpened = false;
+let serverReady = false;
+let appUrlLoaded = false;
 let mainWindow = null;
 let tray = null;
 let configTimer = null;
@@ -83,13 +100,9 @@ function startServer() {
     stdio: ["ignore", logFd, logFd],
   });
   serverChild.on("exit", () => {
-    if (!app.isQuitting && !windowOpened) {
+    if (!app.isQuitting && !serverReady) {
       // 服务器还没启动就退出，弹出错误页而不是无声退出
-      createWindow(
-        `data:text/html;charset=utf-8,${encodeURIComponent(
-          `<h2>藏星未能启动</h2><p>内置服务启动失败，请查看日志：${logPath}</p>`,
-        )}`,
-      );
+      showErrorPage("藏星未能启动", `内置服务启动失败，请查看日志：${logPath}`);
     }
   });
 }
@@ -106,7 +119,7 @@ function restartServer() {
   // 稍等旧进程释放端口后再启动，随后刷新窗口
   setTimeout(() => {
     startServer();
-    waitForServer(45, true);
+    waitForServer(180, true);
   }, 800);
 }
 
@@ -218,8 +231,7 @@ function watchAuthFile() {
   });
 }
 
-function createWindow(url = `http://127.0.0.1:${PORT}`) {
-  windowOpened = true;
+function createWindow(url = SPLASH_URL) {
   mainWindow = new BrowserWindow({
     width: 1360,
     height: 900,
@@ -227,10 +239,17 @@ function createWindow(url = `http://127.0.0.1:${PORT}`) {
     minHeight: 640,
     title: "藏星 · CANGXING",
     autoHideMenuBar: true,
+    show: false,
+    backgroundColor: "#07090d",
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
     },
+  });
+  // 闪屏就绪后立即显示，避免白色闪烁
+  mainWindow.once("ready-to-show", () => {
+    mainWindow.show();
+    mainWindow.focus();
   });
   mainWindow.webContents.setWindowOpenHandler(({ url: u }) => {
     shell.openExternal(u);
@@ -250,6 +269,38 @@ function createWindow(url = `http://127.0.0.1:${PORT}`) {
     }
   });
   mainWindow.loadURL(url);
+}
+
+// 服务启动失败/超时时，在已有窗口里展示错误页而不是新开窗口
+function showErrorPage(title, message) {
+  const html = `data:text/html;charset=utf-8,${encodeURIComponent(
+    `<div style="height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:#07090d;color:#d4d4d8;font-family:system-ui,sans-serif;text-align:center;padding:24px"><h2 style="margin:0;font-size:18px;color:#f59e0b">${title}</h2><p style="margin:0;font-size:13px;color:#71717a;max-width:480px">${message}</p></div>`,
+  )}`;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.loadURL(html);
+    mainWindow.show();
+    mainWindow.focus();
+  } else {
+    createWindow(html);
+  }
+}
+
+// 提前打一次首页，让冷启动的数据抓取在闪屏阶段就并行进行；
+// 首页数据走 getCachedByKey 单飞缓存，窗口请求会复用同一次上游请求
+function warmUpHome() {
+  const req = http.get(`http://127.0.0.1:${PORT}/`, (res) => res.resume());
+  req.setTimeout(15000, () => req.destroy());
+  req.on("error", () => {});
+}
+
+// 服务就绪后从闪屏切换到真正的应用页面
+function loadAppUrl() {
+  if (appUrlLoaded) return;
+  appUrlLoaded = true;
+  warmUpHome();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.loadURL(`http://127.0.0.1:${PORT}`);
+  }
 }
 
 function showMainWindow() {
@@ -296,24 +347,24 @@ function createTray() {
   tray.on("double-click", showMainWindow);
 }
 
-function waitForServer(retries = 45, reload = false) {
+function waitForServer(retries = 180, reload = false) {
   http
-    .get(`http://127.0.0.1:${PORT}/api/health`, () => {
-      if (reload && mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.reload();
-      } else {
-        createWindow();
+    .get(`http://127.0.0.1:${PORT}/api/health`, (res) => {
+      res.resume();
+      serverReady = true;
+      if (reload) {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.reload();
+        }
+      } else if (!appUrlLoaded) {
+        loadAppUrl();
       }
     })
     .on("error", () => {
       if (retries > 0) {
-        setTimeout(() => waitForServer(retries - 1, reload), 1000);
-      } else if (!windowOpened) {
-        createWindow(
-          `data:text/html;charset=utf-8,${encodeURIComponent(
-            "<h2>藏星加载超时</h2><p>内置服务未能就绪，请查看日志后重试。</p>",
-          )}`,
-        );
+        setTimeout(() => waitForServer(retries - 1, reload), HEALTH_INTERVAL);
+      } else if (!serverReady) {
+        showErrorPage("藏星加载超时", "内置服务未能就绪，请查看日志后重试。");
       }
     });
 }
@@ -326,9 +377,11 @@ if (!gotLock) {
   app.on("second-instance", () => showMainWindow());
 
   app.whenReady().then(() => {
+    // 先显示启动闪屏，再在后台拉起内置服务（服务子进程与 Chromium 初始化同时进行会抢 CPU，反而更慢）
+    createWindow();
     loadConfig();
     startServer();
-    waitForServer(45, false);
+    waitForServer(180, false);
     if (configExists) {
       applyAutoLaunch(appConfig.autoLaunch);
       autoLaunchApplied = appConfig.autoLaunch;

@@ -126,17 +126,6 @@ export default function SettingsPage() {
   >(null);
   const [bridgeMsg, setBridgeMsg] = useState<string | null>(null);
   const [bridgeError, setBridgeError] = useState<string | null>(null);
-  const [updateInfo, setUpdateInfo] = useState<{
-    current?: string;
-    latest?: string;
-    updateAvailable?: boolean;
-    release?: { name?: string; url?: string };
-    error?: string | null;
-    checkedAt?: number;
-  } | null>(null);
-  const [updateBusy, setUpdateBusy] = useState(false);
-  const [autoCheck, setAutoCheck] = useState(true);
-  const [ignoredVersion, setIgnoredVersion] = useState<string | null>(null);
   const [sysConfig, setSysConfig] = useState<{
     lanMode: boolean;
     autoLaunch: boolean;
@@ -144,7 +133,6 @@ export default function SettingsPage() {
     lanUrls: string[];
   } | null>(null);
   const [sysBusy, setSysBusy] = useState(false);
-  const [isElectron, setIsElectron] = useState(false);
   const [dirty, setDirty] = useState<DirtyFields>({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -176,32 +164,6 @@ export default function SettingsPage() {
     } catch {
       // 忽略
     }
-    const isElectronApp =
-      typeof navigator !== "undefined" &&
-      navigator.userAgent.includes("Electron");
-    // 延迟到 effect 外再写入状态，避免级联渲染
-    const t = setTimeout(() => setIsElectron(isElectronApp), 0);
-    let cancelled = false;
-    const cleanup = () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-    // 更新检测仅对桌面版（Electron）有意义，网页版不检查
-    if (isElectronApp) {
-      try {
-        setAutoCheck(localStorage.getItem("cangxing-auto-check") !== "0");
-        setIgnoredVersion(localStorage.getItem("cangxing-ignored-version"));
-      } catch {
-        // 忽略
-      }
-      fetch("/api/update", { cache: "no-store" })
-        .then((r) => r.json())
-        .then((data) => {
-          if (!cancelled) setUpdateInfo(data);
-        })
-        .catch(() => {});
-    }
-    return cleanup;
   }, []);
 
   function markDirty(field: keyof DirtyFields) {
@@ -547,53 +509,6 @@ export default function SettingsPage() {
     } finally {
       setBridgeBusy(null);
     }
-  }
-
-  async function checkUpdate(force: boolean) {
-    setUpdateBusy(true);
-    try {
-      const res = await fetch(
-        `/api/update${force ? "?force=1" : ""}`,
-        { cache: "no-store" },
-      );
-      const data = await res.json();
-      setUpdateInfo(data);
-    } catch (e) {
-      setUpdateInfo({
-        updateAvailable: false,
-        error: e instanceof Error ? e.message : "检查更新失败",
-      });
-    } finally {
-      setUpdateBusy(false);
-    }
-  }
-
-  function toggleAutoCheck(v: boolean) {
-    setAutoCheck(v);
-    try {
-      localStorage.setItem("cangxing-auto-check", v ? "1" : "0");
-    } catch {
-      // 忽略
-    }
-  }
-
-  function ignoreThisVersion() {
-    if (!updateInfo?.latest) return;
-    try {
-      localStorage.setItem("cangxing-ignored-version", updateInfo.latest);
-    } catch {
-      // 忽略
-    }
-    setIgnoredVersion(updateInfo.latest);
-  }
-
-  function resetIgnored() {
-    try {
-      localStorage.removeItem("cangxing-ignored-version");
-    } catch {
-      // 忽略
-    }
-    setIgnoredVersion(null);
   }
 
   async function updateSysConfig(patch: {
@@ -1168,88 +1083,8 @@ export default function SettingsPage() {
           说明：NeoDB 连接（授权登录）请在本机完成；局域网设备默认可以浏览与检索，不需要登录。
         </p>
       </div>
-      {isElectron && (
-        <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
-        <h2 className="mb-2 font-medium text-zinc-100">⑨ 更新检测</h2>
-        <p className="mb-3 text-xs text-zinc-500">
-          藏星会自动检查 GitHub 上的新版本（启动时 + 每 6 小时），发现新版本时顶部显示提示横幅，可一键前往下载。
-        </p>
-        <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950/40 px-4 py-3">
-          <div>
-            <p className="text-sm text-zinc-200">自动检测更新</p>
-            <p className="text-xs text-zinc-500">
-              关闭后只在手动检查时检测
-            </p>
-          </div>
-          <Switch checked={autoCheck} onChange={toggleAutoCheck} />
-        </div>
-        <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
-          <span className="text-zinc-400">
-            当前版本：
-            <span className="font-semibold text-amber-400">
-              v{updateInfo?.current || "…"}
-            </span>
-          </span>
-          <button
-            type="button"
-            onClick={() => void checkUpdate(true)}
-            disabled={updateBusy}
-            className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-zinc-950 transition hover:bg-amber-400 disabled:opacity-50"
-          >
-            {updateBusy ? "检查中…" : "检查更新"}
-          </button>
-        </div>
-        {updateInfo && (
-          <div className="rounded-lg bg-zinc-950/40 px-3 py-2.5 text-sm">
-            {updateInfo.updateAvailable ? (
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="text-amber-400">
-                  发现新版本 v{updateInfo.latest}（当前 v{updateInfo.current}）
-                </span>
-                <a
-                  href={updateInfo.release?.url ?? "#"}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-md bg-amber-500 px-3 py-1 text-xs font-medium text-zinc-950"
-                >
-                  前往下载
-                </a>
-                <button
-                  type="button"
-                  onClick={ignoreThisVersion}
-                  className="text-xs text-zinc-500 hover:text-zinc-300"
-                >
-                  忽略此版本
-                </button>
-              </div>
-            ) : updateInfo.error ? (
-              <p className="text-zinc-500">
-                检查失败：{updateInfo.error}
-                {updateInfo.current ? `（当前版本 v${updateInfo.current}）` : ""}
-              </p>
-            ) : (
-              <p className="text-emerald-400">
-                已是最新版本 v{updateInfo.current}
-                {updateInfo.checkedAt
-                  ? ` · ${new Date(updateInfo.checkedAt).toLocaleString()}`
-                  : ""}
-              </p>
-            )}
-          </div>
-        )}
-        {ignoredVersion && (
-          <button
-            type="button"
-            onClick={resetIgnored}
-            className="mt-3 text-xs text-zinc-500 underline hover:text-amber-300"
-          >
-            恢复对 v{ignoredVersion} 的更新提示
-          </button>
-        )}
-        </div>
-      )}
       <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
-        <h2 className="mb-2 font-medium text-zinc-100">⑩ 首页栏目顺序</h2>
+        <h2 className="mb-2 font-medium text-zinc-100">⑨ 首页栏目顺序</h2>
         <p className="mb-3 text-xs text-zinc-500">
           用上下按钮调整各栏目在首页的显示顺序，保存后立即生效。
         </p>

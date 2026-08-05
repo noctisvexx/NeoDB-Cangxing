@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
 import ThemeToggle from "@/components/ThemeToggle";
-import UpdateChecker from "@/components/UpdateChecker";
 
 export const metadata: Metadata = {
   icons: { icon: "/icon.svg" },
@@ -27,7 +26,6 @@ export default function RootLayout({
             __html: `try{var t=localStorage.getItem("shibei-theme");if(t==="light"||t==="dark"){document.documentElement.dataset.theme=t}}catch(e){}`,
           }}
         />
-        <UpdateChecker />
         <header className="sticky top-0 z-20 border-b border-white/5 bg-[#07090d]/80 backdrop-blur">
           <div className="h-px bg-gradient-to-r from-amber-500/50 via-teal-400/50 to-transparent" />
           <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-3">
